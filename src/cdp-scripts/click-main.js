@@ -58,15 +58,16 @@ export function buildMainClickScript(safeClickId, safeLabel) {
           }
         }
       } else if (source === 'dropdown') {
-        // Portal dropdown: body > div[role="listbox"] or nested inside Radix container
+        // Portal dropdown: body > div[role="listbox"|"menu"] or nested inside Radix container
         for (const child of document.body.children) {
-          if (child.getAttribute('role') === 'listbox' && child.textContent.trim()) {
+          const childRole = child.getAttribute('role');
+          if ((childRole === 'listbox' || childRole === 'menu') && child.textContent.trim()) {
             root = child;
             break;
           }
           // Radix wraps portals in ID'd divs — look inside them (matches capture.js logic)
           if (child.id) {
-            const nested = child.querySelector('[role="listbox"]');
+            const nested = child.querySelector('[role="listbox"], [role="menu"]');
             if (nested && nested.textContent.trim()) {
               root = nested;
               break;
@@ -257,8 +258,9 @@ export function buildMainClickScript(safeClickId, safeLabel) {
         }
         return { ok: false, reason: 'model_button_not_found' };
       } else if (source === 'project') {
-        // Project dropdown button — opens AG's project picker dialog
-        const target = document.querySelector('[aria-haspopup="dialog"]');
+        // Project dropdown button — "New Conversation" button opens project picker menu
+        const allBtns = Array.from(document.querySelectorAll('button'));
+        const target = allBtns.find(b => b.textContent.trim() === 'New Conversation' && b.getAttribute('aria-haspopup') === 'menu');
         if (target) {
           const actualLabel = (target.textContent || '').trim().substring(0, 50);
           target.click();
