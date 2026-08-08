@@ -132,11 +132,28 @@ export const CAPTURE_SCRIPT = `
   });
 
   // -- 13. Collect CSS --
+  // Unwrap @layer blocks so captured rules become unlayered in AG2R.
+  // AG's Tailwind v4 wraps utilities in @layer declarations. Per CSS cascade
+  // spec, unlayered styles beat layered styles — so AG2R's unlayered * reset
+  // kills all layered utilities. Unwrapping fixes this for ALL utilities.
   let css = '';
+  function collectRules(ruleList) {
+    for (const rule of ruleList) {
+      // CSSLayerBlockRule (type 12) — unwrap inner rules, discard the @layer wrapper
+      if (rule.cssRules && (rule.constructor.name === 'CSSLayerBlockRule' || rule.type === 12)) {
+        collectRules(rule.cssRules);
+      }
+      // CSSLayerStatementRule (type 13, e.g. @layer theme, base, components, utilities;) — skip entirely
+      else if (rule.constructor.name === 'CSSLayerStatementRule' || rule.type === 13) {
+        // noop — layer ordering declarations have no effect when layers are unwrapped
+      }
+      else {
+        css += rule.cssText + '\\n';
+      }
+    }
+  }
   for (const sheet of document.styleSheets) {
-    try {
-      for (const rule of sheet.cssRules) { css += rule.cssText + '\\n'; }
-    } catch {}
+    try { collectRules(sheet.cssRules); } catch {}
   }
 
   // -- 13b. Extract ALL CSS custom properties from DOM --
