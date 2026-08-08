@@ -316,12 +316,13 @@ export const CAPTURE_SCRIPT = `
       // or a nested portal inside an ID-wrapped Radix container (div#radix-:rXX:).
       // Radix wraps portals in ID'd divs — we need to look inside them.
       const targets = child.id
-        ? Array.from(child.querySelectorAll('[role="dialog"], [role="listbox"]'))
+        ? Array.from(child.querySelectorAll('[role="dialog"], [role="listbox"], [role="menu"]'))
         : [child];
 
       for (const target of targets) {
-        // Dropdown menu (role="listbox")
-        if (!dropdownHtml && target.getAttribute('role') === 'listbox') {
+        // Dropdown menu (role="listbox" or role="menu")
+        const targetRole = target.getAttribute('role');
+        if (!dropdownHtml && (targetRole === 'listbox' || targetRole === 'menu')) {
           const tagged = tagInteractives(target, 'dropdown', true, false);
           const clone = target.cloneNode(true);
           untagAll(tagged);
