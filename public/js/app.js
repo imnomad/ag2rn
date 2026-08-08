@@ -2124,10 +2124,10 @@ function renderSidebar(container, html) {
       const cls = el.className;
       if (typeof cls !== 'string') return;
 
-      // Project-level: "hidden group-hover/section:flex" → force flex
-      if (cls.includes('hidden') && cls.includes('group-hover/section:flex')) {
-        el.classList.remove('hidden');
-        el.style.display = 'flex';
+      // Project-level: "opacity-0 group-hover/header:opacity-100" → force visible
+      if (cls.includes('opacity-0') && cls.includes('group-hover/header:opacity-100')) {
+        el.classList.remove('opacity-0');
+        el.style.opacity = '1';
       }
 
       // Per-session: "invisible group-hover:visible" → force visible
