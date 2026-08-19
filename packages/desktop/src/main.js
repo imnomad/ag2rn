@@ -4,9 +4,22 @@
 import { app, BrowserWindow, Tray, Menu, nativeImage, shell, dialog } from 'electron';
 import path from 'path';
 import { fileURLToPath, pathToFileURL } from 'url';
+import fs from 'fs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+// Global Error Handler so errors are never silent
+process.on('uncaughtException', (err) => {
+  console.error('[Fatal Desktop Error]', err);
+  try {
+    dialog.showErrorBox('AG2RN - Error Inesperado', `${err.message}\n\n${err.stack || ''}`);
+  } catch {}
+});
+
+process.on('unhandledRejection', (reason) => {
+  console.error('[Unhandled Rejection]', reason);
+});
 
 let mainWindow = null;
 let tray = null;
@@ -17,27 +30,47 @@ const DASHBOARD_URL = `https://localhost:${SERVER_PORT}/dashboard`;
 // Ignore self-signed certs for local HTTPS connection
 app.commandLine.appendSwitch('ignore-certificate-errors');
 
+// Resolve the root directory of the application
+function getAppRoot() {
+  if (app.isPackaged) {
+    return path.join(process.resourcesPath, 'app');
+  }
+  return path.resolve(__dirname, '../../../');
+}
+
 // Start the internal AG2RN Express + WebSocket + CDP server
 async function startInternalServer() {
   try {
-    const serverPath = path.resolve(__dirname, '../../../server.js');
-    const serverUrl = pathToFileURL(serverPath).href;
-    await import(serverUrl);
-    console.log('[Desktop] Internal AG2RN Core Server started successfully.');
+    const root = getAppRoot();
+    const serverPath = path.join(root, 'server.js');
+    console.log('[Desktop] Bootstrapping core server at:', serverPath);
+
+    if (fs.existsSync(serverPath)) {
+      const serverUrl = pathToFileURL(serverPath).href;
+      await import(serverUrl);
+      console.log('[Desktop] Internal AG2RN Core Server started successfully.');
+    } else {
+      console.error('[Desktop] server.js not found at:', serverPath);
+    }
   } catch (err) {
-    console.log('[Desktop] Server bootstrap note:', err.message);
+    console.error('[Desktop] Server bootstrap failed:', err);
+    dialog.showErrorBox('AG2RN - Error al iniciar servidor', err.message);
   }
 }
 
 function createWindow() {
+  const root = getAppRoot();
+  const iconPath = path.join(root, 'public', 'ag2r-icon.png');
+
   mainWindow = new BrowserWindow({
-    width: 1100,
-    height: 760,
-    minWidth: 800,
-    minHeight: 600,
+    width: 1120,
+    height: 780,
+    minWidth: 860,
+    minHeight: 620,
     backgroundColor: '#090e17',
     title: 'AG2RN — Antigravity 2.0 Control Center',
-    icon: path.join(__dirname, '../../../public/ag2r-icon.png'),
+    icon: fs.existsSync(iconPath) ? iconPath : undefined,
+    show: false, // Show gracefully when ready
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
@@ -46,8 +79,10 @@ function createWindow() {
   });
 
   const loadDashboard = () => {
-    mainWindow.loadURL(DASHBOARD_URL).catch(() => {
-      setTimeout(loadDashboard, 1000);
+    mainWindow.loadURL(DASHBOARD_URL).then(() => {
+      mainWindow.show();
+    }).catch(() => {
+      setTimeout(loadDashboard, 800);
     });
   };
 
@@ -70,71 +105,82 @@ function createWindow() {
 }
 
 function createTray() {
-  const iconPath = path.join(__dirname, '../../../public/ag2r-icon.png');
-  const icon = nativeImage.createFromPath(iconPath).resize({ width: 18, height: 18 });
+  try {
+    const root = getAppRoot();
+    const iconPath = path.join(root, 'public', 'ag2r-icon.png');
+    let icon = null;
 
-  tray = new Tray(icon);
-  tray.setToolTip('AG2RN — Antigravity 2.0 Remote');
-
-  const contextMenu = Menu.buildFromTemplate([
-    {
-      label: 'Abrir Panel de Control',
-      click: () => {
-        if (mainWindow) {
-          mainWindow.show();
-          mainWindow.focus();
-        }
-      },
-    },
-    {
-      label: 'Abrir en Navegador Web',
-      click: () => {
-        shell.openExternal(DASHBOARD_URL);
-      },
-    },
-    { type: 'separator' },
-    {
-      label: 'Lanzar Antigravity 2.0',
-      click: async () => {
-        try {
-          const res = await fetch(`https://localhost:${SERVER_PORT}/api/antigravity/launch`, { method: 'POST' });
-          const data = await res.json();
-          if (data.ok) {
-            dialog.showMessageBox({
-              type: 'info',
-              title: 'AG2RN',
-              message: 'Antigravity 2.0 ha sido lanzado con éxito con CDP habilitado.',
-            });
-          }
-        } catch {}
-      },
-    },
-    {
-      label: 'Reiniciar Antigravity 2.0',
-      click: async () => {
-        try {
-          await fetch(`https://localhost:${SERVER_PORT}/restart-antigravity`, { method: 'POST' });
-        } catch {}
-      },
-    },
-    { type: 'separator' },
-    {
-      label: 'Salir de AG2RN',
-      click: () => {
-        isQuitting = true;
-        app.quit();
-      },
-    },
-  ]);
-
-  tray.setContextMenu(contextMenu);
-
-  tray.on('double-click', () => {
-    if (mainWindow) {
-      mainWindow.show();
-      mainWindow.focus();
+    if (fs.existsSync(iconPath)) {
+      icon = nativeImage.createFromPath(iconPath).resize({ width: 18, height: 18 });
+    } else {
+      icon = nativeImage.createEmpty();
     }
-  });
+
+    tray = new Tray(icon);
+    tray.setToolTip('AG2RN — Antigravity 2.0 Remote');
+
+    const contextMenu = Menu.buildFromTemplate([
+      {
+        label: 'Abrir Panel de Control',
+        click: () => {
+          if (mainWindow) {
+            mainWindow.show();
+            mainWindow.focus();
+          }
+        },
+      },
+      {
+        label: 'Abrir en Navegador Web',
+        click: () => {
+          shell.openExternal(DASHBOARD_URL);
+        },
+      },
+      { type: 'separator' },
+      {
+        label: 'Lanzar Antigravity 2.0',
+        click: async () => {
+          try {
+            const res = await fetch(`https://localhost:${SERVER_PORT}/api/antigravity/launch`, { method: 'POST' });
+            const data = await res.json();
+            if (data.ok) {
+              dialog.showMessageBox({
+                type: 'info',
+                title: 'AG2RN',
+                message: 'Antigravity 2.0 ha sido lanzado con éxito con CDP habilitado.',
+              });
+            }
+          } catch {}
+        },
+      },
+      {
+        label: 'Reiniciar Antigravity 2.0',
+        click: async () => {
+          try {
+            await fetch(`https://localhost:${SERVER_PORT}/restart-antigravity`, { method: 'POST' });
+          } catch {}
+        },
+      },
+      { type: 'separator' },
+      {
+        label: 'Salir de AG2RN',
+        click: () => {
+          isQuitting = true;
+          app.quit();
+        },
+      },
+    ]);
+
+    tray.setContextMenu(contextMenu);
+
+    tray.on('double-click', () => {
+      if (mainWindow) {
+        mainWindow.show();
+        mainWindow.focus();
+      }
+    });
+  } catch (err) {
+    console.error('[Desktop] Failed to create System Tray:', err);
+  }
 }
 
 // Single Instance Lock
