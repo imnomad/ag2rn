@@ -278,8 +278,15 @@ window.addEventListener('unhandledrejection', (e) => {
 let wsReconnectDelay = 1000;
 
 function connectWebSocket() {
-  const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
-  const wsUrl = `${protocol}//${location.host}`;
+  const remoteServer = localStorage.getItem('ag2rn_server_url');
+  let wsUrl = '';
+  if (remoteServer) {
+    const wsBase = remoteServer.replace(/^http:/i, 'ws:').replace(/^https:/i, 'wss:');
+    wsUrl = `${wsBase}/ws`;
+  } else {
+    const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+    wsUrl = `${protocol}//${location.host}`;
+  }
 
   ws = new WebSocket(wsUrl);
 

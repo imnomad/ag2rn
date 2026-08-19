@@ -9,6 +9,8 @@ certs/
 
 # Generated / runtime & build outputs
 dist/
+.idea/
+.gradle/
 *.log
 .DS_Store
 .ag2r-telemetry-id
