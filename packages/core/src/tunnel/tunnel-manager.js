@@ -7,6 +7,8 @@ import { spawn } from 'child_process';
 let activeTunnelProcess = null;
 let activeTunnelUrl = null;
 
+export const DEFAULT_PORT = 3820;
+
 /**
  * Returns all local IPv4 network addresses of this machine.
  * Useful for local Wi-Fi pairing when tunnel is not needed.
@@ -30,10 +32,10 @@ export function getLocalIpAddresses() {
 
 /**
  * Gets the primary local connection URL.
- * @param {number} [port=3000]
+ * @param {number} [port=3820]
  * @returns {string}
  */
-export function getPrimaryLocalUrl(port = 3000) {
+export function getPrimaryLocalUrl(port = DEFAULT_PORT) {
   const ips = getLocalIpAddresses();
   if (ips.length > 0) {
     return `https://${ips[0].address}:${port}`;
@@ -43,10 +45,10 @@ export function getPrimaryLocalUrl(port = 3000) {
 
 /**
  * Starts a Cloudflare Quick Tunnel if cloudflared binary is present.
- * @param {number} localPort
+ * @param {number} [localPort=3820]
  * @returns {Promise<{ ok: boolean, url?: string, error?: string }>}
  */
-export function startCloudflareTunnel(localPort = 3000) {
+export function startCloudflareTunnel(localPort = DEFAULT_PORT) {
   return new Promise((resolve) => {
     if (activeTunnelProcess && activeTunnelUrl) {
       return resolve({ ok: true, url: activeTunnelUrl });
@@ -114,10 +116,10 @@ export function stopTunnel() {
 
 /**
  * Returns the current active public or local connection URL.
- * @param {number} port
+ * @param {number} [port=3820]
  * @returns {string}
  */
-export function resolveConnectionUrl(port = 3000) {
+export function resolveConnectionUrl(port = DEFAULT_PORT) {
   if (process.env.TUNNEL_URL) return process.env.TUNNEL_URL;
   if (activeTunnelUrl) return activeTunnelUrl;
   return getPrimaryLocalUrl(port);

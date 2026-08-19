@@ -5,6 +5,7 @@ import { app, BrowserWindow, Tray, Menu, nativeImage, shell, dialog } from 'elec
 import path from 'path';
 import { fileURLToPath, pathToFileURL } from 'url';
 import fs from 'fs';
+import { findAvailablePort } from '../../core/src/tunnel/port-finder.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -24,8 +25,11 @@ process.on('unhandledRejection', (reason) => {
 let mainWindow = null;
 let tray = null;
 let isQuitting = false;
-const SERVER_PORT = process.env.PORT || 3000;
-const DASHBOARD_URL = `https://localhost:${SERVER_PORT}/dashboard`;
+let SERVER_PORT = parseInt(process.env.PORT || '3820');
+
+function getDashboardUrl() {
+  return `https://localhost:${SERVER_PORT}/dashboard`;
+}
 
 // Ignore self-signed certs for local HTTPS connection
 app.commandLine.appendSwitch('ignore-certificate-errors');
@@ -48,7 +52,7 @@ async function startInternalServer() {
     if (fs.existsSync(serverPath)) {
       const serverUrl = pathToFileURL(serverPath).href;
       await import(serverUrl);
-      console.log('[Desktop] Internal AG2RN Core Server started successfully.');
+      console.log('[Desktop] Internal AG2RN Core Server started successfully on port', SERVER_PORT);
     } else {
       console.error('[Desktop] server.js not found at:', serverPath);
     }
@@ -79,7 +83,7 @@ function createWindow() {
   });
 
   const loadDashboard = () => {
-    mainWindow.loadURL(DASHBOARD_URL).then(() => {
+    mainWindow.loadURL(getDashboardUrl()).then(() => {
       mainWindow.show();
     }).catch(() => {
       setTimeout(loadDashboard, 800);
@@ -132,7 +136,7 @@ function createTray() {
       {
         label: 'Abrir en Navegador Web',
         click: () => {
-          shell.openExternal(DASHBOARD_URL);
+          shell.openExternal(getDashboardUrl());
         },
       },
       { type: 'separator' },
@@ -197,6 +201,8 @@ if (!gotTheLock) {
   });
 
   app.whenReady().then(async () => {
+    SERVER_PORT = await findAvailablePort(SERVER_PORT);
+    process.env.PORT = String(SERVER_PORT);
     await startInternalServer();
     createTray();
     createWindow();

@@ -3,6 +3,7 @@
 [![Antigravity 2.0](https://img.shields.io/badge/Antigravity_2.0-Compatible-blue?style=for-the-badge&logo=google)](https://antigravity.google)
 [![Platform](https://img.shields.io/badge/Platform-Windows%20|%20macOS%20|%20Linux%20|%20iOS%20|%20Android-green?style=for-the-badge)](#-arquitectura)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](./LICENSE)
+[![Buy Me A Coffee](https://img.shields.io/badge/Buy%20Me%20A%20Coffee-Donate-orange?style=for-the-badge&logo=buy-me-a-coffee&logoColor=black)](https://buymeacoffee.com/imnomad)
 
 **AG2RN** (*Antigravity 2.0 Remote Native*) is a complete native cross-platform companion suite for **Google Antigravity 2.0**. It lets developers monitor AI coding sessions, review plans, answer interactive questions, approve terminal commands, and chat with their autonomous agents directly from their **iOS** and **Android** devices from anywhere in the world.
 
@@ -147,6 +148,14 @@ ag2rn/
 - [ ] **Fase 3:** Aplicación Móvil Nativa para **iOS (App Store)** y **Android (Google Play)** con Capacitor.
 - [ ] **Fase 4:** Push Notification Gateway Serverless (APNs + FCM con acciones interactivas).
 - [ ] **Fase 5:** Publicación en **Apple App Store** y **Google Play Store**.
+
+---
+
+## ☕ Apoya el Proyecto / Support
+
+Si encuentras útil **AG2RN** y deseas apoyar su desarrollo continuo:
+
+<a href="https://buymeacoffee.com/imnomad" target="_blank"><img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy Me A Coffee" height="48" style="height: 48px !important;"></a>
 
 ---
 

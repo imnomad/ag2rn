@@ -31,6 +31,7 @@ import {
   revokePairedDevice,
 } from './packages/core/src/pairing/pairing.js';
 import { getLocalIpAddresses, resolveConnectionUrl, startCloudflareTunnel } from './packages/core/src/tunnel/tunnel-manager.js';
+import { findAvailablePort } from './packages/core/src/tunnel/port-finder.js';
 
 // CDP scripts — browser-side JS evaluated via Runtime.evaluate
 // See src/cdp-scripts/ for the actual script content
@@ -71,7 +72,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // === Configuration ===
 // Primary config is in .env (see .env.example for user-facing vars).
 // Advanced vars below have sensible defaults and are documented here only.
-const PORT = parseInt(process.env.PORT || '3000');
+let PORT = parseInt(process.env.PORT || '3820');
 const CDP_HOST = process.env.CDP_HOST || '127.0.0.1';       // Chrome DevTools Protocol host
 const CDP_PORT = parseInt(process.env.CDP_PORT || '9000');   // Chrome DevTools Protocol port
 const APP_PASSWORD = process.env.APP_PASSWORD;               // Required when AUTH_ENABLED=true
@@ -2037,6 +2038,9 @@ async function start() {
 
   // Ensure flags are loaded before accepting connections
   await flagsReady;
+
+  // Automatically find free port if desired port is in use
+  PORT = await findAvailablePort(PORT);
 
   server.listen(PORT, () => {
     log('Server', `${appName} (env: ${getEnv()}) running on https://localhost:${PORT}`);
