@@ -914,14 +914,14 @@ if (TUNNEL_ENABLED) {
 }
 
 // --- Auth Middleware ---
-const PUBLIC_PATHS = ['/login', '/login.html', '/favicon.ico', '/manifest.json'];
+const PUBLIC_PATHS = ['/login', '/login.html', '/favicon.ico', '/manifest.json', '/dashboard', '/dashboard/index.html'];
 
 app.use((req, res, next) => {
   // Auth disabled — skip entirely (feature branch testing)
   if (!AUTH_ENABLED) return next();
 
   // Public paths bypass auth
-  if (PUBLIC_PATHS.some(p => req.path === p) || req.path.startsWith('/css/')) {
+  if (PUBLIC_PATHS.some(p => req.path === p) || req.path.startsWith('/css/') || req.path.startsWith('/dashboard/')) {
     return next();
   }
 
@@ -976,8 +976,11 @@ app.get('/', (req, res) => {
   const html = indexHtml
     .replaceAll('/ag2r-icon.png', appIconPath)
     .replaceAll('<title>AG2R</title>', `<title>${appName}</title>`)
-    .replace('content="AG2R"', `content="${appName}"`);
   res.type('html').send(html);
+});
+
+app.get('/dashboard', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'dashboard', 'index.html'));
 });
 
 // --- Static Files (no cache during development) ---
@@ -1271,17 +1274,22 @@ app.get('/api/status', (req, res) => {
 // --- QR Pairing Endpoints for Mobile Clients (iOS & Android) ---
 let currentPairingState = null;
 
-app.get('/api/pairing/qr', (req, res) => {
-  const endpoint = resolveConnectionUrl(PORT);
-  const serverName = `${os.hostname()} (${os.platform()})`;
-  currentPairingState = createPairingPayload(endpoint, serverName, APP_PASSWORD);
-  res.json({
-    ok: true,
-    qrPayload: currentPairingState.qrPayload,
-    endpoint,
-    serverName,
-    expiresAt: currentPairingState.expiresAt,
-  });
+app.get('/api/pairing/qr', async (req, res) => {
+  try {
+    const endpoint = resolveConnectionUrl(PORT);
+    const serverName = `${os.hostname()} (${os.platform()})`;
+    currentPairingState = await createPairingPayload(endpoint, serverName, APP_PASSWORD);
+    res.json({
+      ok: true,
+      qrPayload: currentPairingState.qrPayload,
+      qrDataUrl: currentPairingState.qrDataUrl,
+      endpoint,
+      serverName,
+      expiresAt: currentPairingState.expiresAt,
+    });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err.message });
+  }
 });
 
 app.post('/api/pairing/register', (req, res) => {

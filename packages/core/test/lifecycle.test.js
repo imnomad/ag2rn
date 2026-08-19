@@ -1,5 +1,5 @@
 // packages/core/test/lifecycle.test.js
-// Basic unit tests for AG2RN detector, pairing and tunnel modules
+// Unit tests for AG2RN detector, pairing, and tunnel modules
 
 import { getDevToolsPortCandidatePaths, getAntigravityExecutableCandidates, readDevToolsPort } from '../src/lifecycle/detector.js';
 import { isAntigravityRunning } from '../src/lifecycle/launcher.js';
@@ -31,10 +31,12 @@ console.log(`[Test 5] Local IP addresses detected:`, localIps);
 const localUrl = getPrimaryLocalUrl(3000);
 console.log(`[Test 5b] Primary local URL:`, localUrl);
 
-// Test 6: Pairing & QR payload generation
-const pairing = createPairingPayload(localUrl, 'Test-Host', 'secret123');
+// Test 6: Pairing & QR payload generation (async with QR DataURL)
+const pairing = await createPairingPayload(localUrl, 'Test-Host', 'secret123');
 console.log(`[Test 6] Pairing payload created:`, pairing.qrPayload.substring(0, 50) + '...');
+console.log(`[Test 6b] QR DataURL generated:`, pairing.qrDataUrl ? 'YES (Base64 PNG)' : 'NO');
 if (!pairing.qrPayload.startsWith('ag2rn://pair?data=')) throw new Error('Invalid QR payload format');
+if (!pairing.qrDataUrl.startsWith('data:image/png;base64,')) throw new Error('Invalid QR DataURL format');
 
 // Test 7: Mobile registration validation
 const regResult = registerPairedDevice('test-iphone-123', 'John iPhone', 'ios', pairing.pairingToken, pairing.pairingToken);

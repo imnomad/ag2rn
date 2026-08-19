@@ -3,6 +3,7 @@
 
 import crypto from 'crypto';
 import fs from 'fs';
+import QRCode from 'qrcode';
 import { getConfigPath, ensureConfigDir } from '../../../../src/paths.js';
 
 const PAIRED_DEVICES_PATH = getConfigPath('paired-devices.json');
@@ -45,9 +46,9 @@ loadPairedDevices();
  * @param {string} endpoint Public or local URL of the AG2RN server (e.g. https://xyz.trycloudflare.com or https://192.168.1.50:3000)
  * @param {string} serverName Display name of this host (e.g. "My PC (Windows 11)")
  * @param {string} masterPassword Application master password or secret
- * @returns {{ qrPayload: string, pairingToken: string, expiresAt: number }}
+ * @returns {Promise<{ qrPayload: string, qrDataUrl: string, pairingToken: string, expiresAt: number }>}
  */
-export function createPairingPayload(endpoint, serverName, masterPassword) {
+export async function createPairingPayload(endpoint, serverName, masterPassword) {
   const pairingToken = crypto.randomBytes(24).toString('hex');
   const expiresAt = Date.now() + 10 * 60 * 1000; // 10 minutes valid
 
@@ -62,9 +63,25 @@ export function createPairingPayload(endpoint, serverName, masterPassword) {
   };
 
   const qrPayload = `ag2rn://pair?data=${encodeURIComponent(Buffer.from(JSON.stringify(payload)).toString('base64'))}`;
+  
+  let qrDataUrl = '';
+  try {
+    qrDataUrl = await QRCode.toDataURL(qrPayload, {
+      errorCorrectionLevel: 'M',
+      margin: 2,
+      width: 320,
+      color: {
+        dark: '#0f172a',
+        light: '#ffffff',
+      },
+    });
+  } catch (err) {
+    console.debug('[Pairing] QRCode generation failed:', err.message);
+  }
 
   return {
     qrPayload,
+    qrDataUrl,
     payload,
     pairingToken,
     expiresAt,

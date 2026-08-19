@@ -1,0 +1,45 @@
+{
+  "name": "ag2rn-desktop",
+  "version": "2.0.0",
+  "description": "AG2RN Desktop Control Center and System Tray Server for Windows, macOS and Linux",
+  "main": "src/main.js",
+  "type": "module",
+  "scripts": {
+    "start": "electron src/main.js",
+    "pack": "electron-builder --dir",
+    "dist": "electron-builder",
+    "dist:win": "electron-builder --win",
+    "dist:mac": "electron-builder --mac",
+    "dist:linux": "electron-builder --linux"
+  },
+  "keywords": [
+    "antigravity",
+    "antigravity-2.0",
+    "electron",
+    "desktop",
+    "tray"
+  ],
+  "author": "imnomad",
+  "license": "MIT",
+  "build": {
+    "appId": "com.ag2rn.desktop",
+    "productName": "AG2RN Control Center",
+    "directories": {
+      "output": "../../dist/desktop"
+    },
+    "win": {
+      "target": ["nsis", "portable"],
+      "icon": "../../public/ag2r-icon.png"
+    },
+    "mac": {
+      "target": ["dmg", "zip"],
+      "icon": "../../public/ag2r-icon.png",
+      "category": "public.app-category.developer-tools"
+    },
+    "linux": {
+      "target": ["AppImage", "deb"],
+      "icon": "../../public/ag2r-icon.png",
+      "category": "Development"
+    }
+  }
+}

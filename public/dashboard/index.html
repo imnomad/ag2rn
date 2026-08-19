@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AG2RN — Antigravity 2.0 Control Center</title>
+  <link rel="icon" type="image/png" href="/ag2r-icon.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@24,400,1,0&display=swap">
+  <link rel="stylesheet" href="/dashboard/dashboard.css">
+</head>
+<body>
+  <div class="dashboard-layout">
+    <!-- Sidebar Navigation -->
+    <aside class="sidebar">
+      <div class="brand">
+        <img src="/ag2r-icon.png" alt="AG2RN Logo" class="brand-icon" width="36" height="36">
+        <div class="brand-text">
+          <h2>AG2RN</h2>
+          <span class="badge">Desktop 2.0</span>
+        </div>
+      </div>
+
+      <nav class="nav-menu">
+        <a href="#overview" class="nav-item active" data-tab="overview">
+          <span class="material-symbols-rounded">dashboard</span>
+          <span>Panel de Control</span>
+        </a>
+        <a href="#pairing" class="nav-item" data-tab="pairing">
+          <span class="material-symbols-rounded">qr_code_scanner</span>
+          <span>Vincular Móvil</span>
+        </a>
+        <a href="#devices" class="nav-item" data-tab="devices">
+          <span class="material-symbols-rounded">devices</span>
+          <span>Dispositivos</span>
+        </a>
+        <a href="#logs" class="nav-item" data-tab="logs">
+          <span class="material-symbols-rounded">terminal</span>
+          <span>Consola & Logs</span>
+        </a>
+      </nav>
+
+      <div class="sidebar-footer">
+        <div class="system-indicator">
+          <span class="status-dot" id="sidebar-global-dot"></span>
+          <span id="sidebar-global-status">Conectando...</span>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main Content Area -->
+    <main class="main-content">
+      <!-- Top Bar -->
+      <header class="top-bar">
+        <div class="header-left">
+          <h1 id="page-title">Panel de Control</h1>
+          <p class="subtitle">Supervisión y puente remoto de Antigravity 2.0</p>
+        </div>
+        <div class="header-actions">
+          <button id="btn-launch-ag" class="btn btn-secondary">
+            <span class="material-symbols-rounded">rocket_launch</span>
+            <span>Lanzar Antigravity</span>
+          </button>
+          <button id="btn-restart-ag" class="btn btn-secondary">
+            <span class="material-symbols-rounded">restart_alt</span>
+            <span>Reiniciar</span>
+          </button>
+          <button id="btn-refresh" class="btn btn-icon" title="Actualizar">
+            <span class="material-symbols-rounded">refresh</span>
+          </button>
+        </div>
+      </header>
+
+      <!-- Tab: Overview -->
+      <section id="tab-overview" class="tab-content active">
+        <!-- 3 Top Metric Cards -->
+        <div class="cards-grid">
+          <!-- Card 1: Antigravity Process -->
+          <div class="card">
+            <div class="card-header">
+              <span class="material-symbols-rounded card-icon text-purple">psychology</span>
+              <span class="card-tag" id="ag-process-badge">Verificando...</span>
+            </div>
+            <div class="card-body">
+              <h3 class="card-value" id="ag-process-title">Antigravity 2.0</h3>
+              <p class="card-subtext" id="ag-process-detail">Buscando proceso...</p>
+            </div>
+            <div class="card-footer">
+              <span class="meta-label">Puerto CDP:</span>
+              <span class="meta-val" id="ag-cdp-port-val">Auto</span>
+            </div>
+          </div>
+
+          <!-- Card 2: CDP Bridge Connection -->
+          <div class="card">
+            <div class="card-header">
+              <span class="material-symbols-rounded card-icon text-blue">sensors</span>
+              <span class="card-tag" id="cdp-status-badge">Desconectado</span>
+            </div>
+            <div class="card-body">
+              <h3 class="card-value" id="cdp-status-title">Bridge CDP</h3>
+              <p class="card-subtext" id="cdp-status-detail">Esperando socket...</p>
+            </div>
+            <div class="card-footer">
+              <span class="meta-label">Estado del Agente:</span>
+              <span class="meta-val" id="agent-state-val">Inactivo</span>
+            </div>
+          </div>
+
+          <!-- Card 3: Network & Tunnel -->
+          <div class="card">
+            <div class="card-header">
+              <span class="material-symbols-rounded card-icon text-emerald">wifi_tethering</span>
+              <span class="card-tag tag-emerald" id="network-mode-badge">Activo</span>
+            </div>
+            <div class="card-body">
+              <h3 class="card-value" id="network-url-title">Red Local / Túnel</h3>
+              <p class="card-subtext" id="network-url-val">https://localhost:3000</p>
+            </div>
+            <div class="card-footer">
+              <span class="meta-label">Móviles conectados:</span>
+              <span class="meta-val" id="ws-clients-count">0</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- 2 Column Section: QR Pairing + Paired Devices Summary -->
+        <div class="content-split">
+          <!-- Left: Quick Pairing -->
+          <div class="panel">
+            <div class="panel-header">
+              <h2><span class="material-symbols-rounded">qr_code_2</span> Emparejamiento Rápido</h2>
+              <button id="btn-refresh-qr" class="btn btn-sm btn-ghost">
+                <span class="material-symbols-rounded">cached</span>
+                <span>Nuevo QR</span>
+              </button>
+            </div>
+            <div class="panel-body pairing-box">
+              <div class="qr-wrapper">
+                <img id="qr-image" src="" alt="Código QR de Emparejamiento" class="qr-img">
+                <div id="qr-loading" class="qr-loading">
+                  <span class="spinner"></span>
+                  <p>Generando QR seguro...</p>
+                </div>
+              </div>
+              <div class="pairing-instructions">
+                <h3>Escanea con tu iPhone o Android</h3>
+                <p>1. Abre la app móvil de <strong>AG2RN</strong>.</p>
+                <p>2. Toca <strong>"Escanear Servidor"</strong> y apunta a la pantalla.</p>
+                <p>3. ¡Quedarás conectado al instante!</p>
+                <div class="qr-actions">
+                  <button id="btn-copy-magic-link" class="btn btn-primary">
+                    <span class="material-symbols-rounded">link</span>
+                    <span>Copiar Enlace Mágico</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Right: Paired Devices -->
+          <div class="panel">
+            <div class="panel-header">
+              <h2><span class="material-symbols-rounded">phonelink_ring</span> Dispositivos Autorizados</h2>
+              <span class="badge" id="devices-count-badge">0 dispositivos</span>
+            </div>
+            <div class="panel-body">
+              <div id="devices-list" class="devices-list">
+                <div class="empty-devices">
+                  <span class="material-symbols-rounded">mobile_off</span>
+                  <p>No hay dispositivos móviles vinculados aún.</p>
+                  <small>Escanea el código QR para autorizar tu primer teléfono.</small>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Tab: Pairing Specific -->
+      <section id="tab-pairing" class="tab-content">
+        <div class="panel">
+          <div class="panel-header">
+            <h2>Vincular Nuevo Dispositivo Móvil</h2>
+          </div>
+          <div class="panel-body text-center">
+            <div class="large-qr-container">
+              <img id="qr-image-large" src="" alt="QR" class="large-qr-img">
+              <p class="mt-4 text-muted">El código QR se renueva automáticamente por seguridad.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Tab: Devices Specific -->
+      <section id="tab-devices" class="tab-content">
+        <div class="panel">
+          <div class="panel-header">
+            <h2>Administración de Dispositivos Móviles</h2>
+          </div>
+          <div class="panel-body">
+            <div id="full-devices-table" class="devices-table-wrap"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Tab: Logs -->
+      <section id="tab-logs" class="tab-content">
+        <div class="panel">
+          <div class="panel-header">
+            <h2>Consola de Eventos y Diagnósticos</h2>
+            <button id="btn-clear-logs" class="btn btn-sm btn-ghost">Limpiar</button>
+          </div>
+          <div class="panel-body">
+            <div id="logs-console" class="logs-console">
+              <div class="log-entry log-info">[Sistema] Dashboard de AG2RN iniciado correctamente.</div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script src="/dashboard/dashboard.js"></script>
+</body>
+</html>
