@@ -1,0 +1,14 @@
+name = "ag2rn-push-gateway"
+main = "src/index.js"
+compatibility_date = "2024-09-01"
+
+[vars]
+ENVIRONMENT = "production"
+APNS_TOPIC = "com.ag2rn.app"
+APNS_USE_SANDBOX = "false"
+
+# Secrets to be configured via: wrangler secret put <NAME>
+# - APNS_KEY_ID
+# - APNS_TEAM_ID
+# - APNS_PRIVATE_KEY
+# - FCM_SERVER_KEY

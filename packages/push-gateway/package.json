@@ -1,0 +1,24 @@
+{
+  "name": "ag2rn-push-gateway",
+  "version": "2.0.0",
+  "description": "Stateless Zero-Knowledge Push Notification Gateway for AG2RN (APNs for iOS & FCM for Android)",
+  "main": "src/index.js",
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy"
+  },
+  "keywords": [
+    "antigravity",
+    "push",
+    "apns",
+    "fcm",
+    "cloudflare-worker"
+  ],
+  "dependencies": {
+    "jsonwebtoken": "^9.0.2"
+  },
+  "devDependencies": {
+    "wrangler": "^3.78.0"
+  }
+}
