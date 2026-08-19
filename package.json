@@ -11,7 +11,8 @@
     "desktop": "electron packages/desktop/src/main.js",
     "desktop:dist": "electron-builder --win",
     "desktop:dist:mac": "electron-builder --mac",
-    "desktop:dist:linux": "electron-builder --linux"
+    "desktop:dist:linux": "electron-builder --linux",
+    "mobile:build": "node packages/mobile/build-mobile.js"
   },
   "keywords": [
     "antigravity",

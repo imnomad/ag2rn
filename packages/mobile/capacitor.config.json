@@ -1,0 +1,32 @@
+{
+  "appId": "com.ag2rn.app",
+  "appName": "AG2RN",
+  "webDir": "www",
+  "bundledWebRuntime": false,
+  "server": {
+    "cleartext": true,
+    "androidScheme": "https",
+    "allowNavigation": ["*"]
+  },
+  "plugins": {
+    "PushNotifications": {
+      "presentationOptions": ["badge", "sound", "alert"]
+    },
+    "Keyboard": {
+      "resize": "body",
+      "style": "DARK",
+      "resizeOnFullScreen": true
+    },
+    "StatusBar": {
+      "style": "DARK",
+      "backgroundColor": "#090e17"
+    }
+  },
+  "ios": {
+    "preferredContentMode": "mobile",
+    "scheme": "AG2RN"
+  },
+  "android": {
+    "allowMixedContent": true
+  }
+}

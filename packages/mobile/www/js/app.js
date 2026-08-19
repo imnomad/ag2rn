@@ -1,0 +1,3146 @@
+// app.js — AG2R Client
+// WebSocket connection, snapshot rendering, stop/send logic, scroll management
+
+// ─────────────────────────────────────────────
+// State
+// ─────────────────────────────────────────────
+let ws = null;
+let lastHash = null;
+let agentRunning = false;
+let cdpConnected = false;
+let isRendering = false;
+let isSending = false;
+let userScrolledAway = false;
+let _lastContentFingerprint = null; // tracks conversation identity for scroll reset
+let debugMode = false;
+let featureFlags = {}; // populated from server on WS connect
+
+// Telemetry: previous snapshot values for change detection
+let _prevModelName = null;
+let _prevBranchName = null;
+let _prevEnvironmentName = null;
+
+// Mobile detection: coarse pointer = touchscreen (phone/tablet)
+// On mobile, Enter inserts a newline; the send button sends.
+// On desktop, Enter sends; Shift+Enter inserts a newline.
+const isMobile = window.matchMedia('(pointer: coarse)').matches;
+
+// ─────────────────────────────────────────────
+// DOM References
+// ─────────────────────────────────────────────
+const chatArea = document.getElementById('chat-area');
+const chatContent = document.getElementById('chat-content');
+const cdpStyles = document.getElementById('cdp-styles');
+const emptyState = document.getElementById('empty-state');
+const scrollFab = document.getElementById('scroll-fab');
+const messageInput = document.getElementById('message-input');
+const actionBtn = document.getElementById('action-btn');
+const actionIcon = document.getElementById('action-icon');
+const connectionDot = document.getElementById('connection-status');
+const sidebarToggle = document.getElementById('sidebar-toggle');
+const reviewToggle = document.getElementById('review-toggle');
+
+// Left sidebar (AG's chat list)
+const leftSidebar = document.getElementById('left-sidebar');
+const leftSidebarContent = document.getElementById('left-sidebar-content');
+const leftSidebarCdpStyles = document.getElementById('left-sidebar-cdp-styles');
+const leftSidebarOverlay = document.getElementById('left-sidebar-overlay');
+// Right sidebar (AG's review panel)
+const rightSidebar = document.getElementById('right-sidebar');
+const rightSidebarContent = document.getElementById('right-sidebar-content');
+const rightSidebarCdpStyles = document.getElementById('right-sidebar-cdp-styles');
+const rightSidebarOverlay = document.getElementById('right-sidebar-overlay');
+// Dropdown overlay (AG portal menus)
+const dropdownOverlay = document.getElementById('dropdown-overlay');
+const dropdownBackdrop = document.getElementById('dropdown-backdrop');
+const dropdownContent = document.getElementById('dropdown-content');
+// Comment UI
+const commentFab = document.getElementById('comment-fab');
+const commentModal = document.getElementById('comment-modal');
+const commentModalBackdrop = document.getElementById('comment-modal-backdrop');
+const commentSelectionPreview = document.getElementById('comment-selection-preview');
+const commentInput = document.getElementById('comment-input');
+const commentCancel = document.getElementById('comment-cancel');
+const commentSubmit = document.getElementById('comment-submit');
+// Input bar + quick actions
+const inputBar = document.getElementById('input-bar');
+const quickActions = document.getElementById('quick-actions');
+// Permission overlay
+const permissionOverlay = document.getElementById('permission-overlay');
+const permissionBackdrop = document.getElementById('permission-backdrop');
+const permissionContent = document.getElementById('permission-content');
+// Settings overlay
+const settingsOverlay = document.getElementById('settings-overlay');
+const settingsContent = document.getElementById('settings-content');
+const settingsBack = document.getElementById('settings-back');
+// Restart confirmation modal
+const restartConfirm = document.getElementById('restart-confirm');
+const restartCancel = document.getElementById('restart-cancel');
+const restartGo = document.getElementById('restart-go');
+// Header refresh button
+const refreshBtn = document.getElementById('refresh-btn');
+// Scheduled Tasks overlay
+const scheduledTasksOverlay = document.getElementById('scheduled-tasks-overlay');
+const scheduledTasksContent = document.getElementById('scheduled-tasks-content');
+const scheduledTasksDialog = document.getElementById('scheduled-tasks-dialog');
+const scheduledTasksBack = document.getElementById('scheduled-tasks-back');
+// Conversation History overlay
+const conversationHistoryOverlay = document.getElementById('conversation-history-overlay');
+const conversationHistoryContent = document.getElementById('conversation-history-content');
+const conversationHistoryBack = document.getElementById('conversation-history-back');
+// Text input modal (for scheduled tasks form fields)
+const textInputModal = document.getElementById('text-input-modal');
+const textInputBackdrop = document.getElementById('text-input-backdrop');
+const textInputLabel = document.getElementById('text-input-label');
+const textInputField = document.getElementById('text-input-field');
+const textInputArea = document.getElementById('text-input-area');
+const textInputCancel = document.getElementById('text-input-cancel');
+const textInputSubmit = document.getElementById('text-input-submit');
+// Running tasks strip
+const runningTasks = document.getElementById('running-tasks');
+const runningTasksHeader = document.getElementById('running-tasks-header');
+const runningTasksList = document.getElementById('running-tasks-list');
+const runningTasksCount = document.getElementById('running-tasks-count');
+let runningTasksCollapsed = false;
+// Subagent view bar
+const subagentBar = document.getElementById('subagent-bar');
+const subagentBackBtn = document.getElementById('subagent-back-btn');
+const subagentParentName = document.getElementById('subagent-parent-name');
+let isInSubagentView = false;   // Synced from server-side detection (inputBox absence)
+let isInputBoxHidden = false;   // Synced from server-side detection (AG's input box invisible)
+
+// Subagent info panel (cannot prompt message + overview button)
+const subagentInfo = document.getElementById('subagent-info');
+
+// Side Question (BTW) panel
+const btwPanel = document.getElementById('btw-panel');
+// Deferred sidebar open: set true when user clicks a task name.
+// loadSnapshot checks this flag after detecting subagent vs command view.
+
+// Suppression: ignore stale dialog/dropdown snapshots for a short window after user dismisses
+let overlayDismissedAt = 0;
+
+// Handle ?sidebar=open&conversationId=<id> URL params (from push notification clicks)
+// If conversationId is present, navigate directly to that conversation.
+// Otherwise, just open the left sidebar.
+const _urlParams = new URLSearchParams(window.location.search);
+if (_urlParams.get('sidebar') === 'open') {
+  const _notifConversationId = _urlParams.get('conversationId');
+  // Defer until first snapshot loads (sidebar content needs to be populated)
+  let _sidebarOpenPending = true;
+  window._ag2rSidebarOpenHook = () => {
+    if (_sidebarOpenPending) {
+      _sidebarOpenPending = false;
+      if (_notifConversationId) {
+        navigateToConversation(_notifConversationId);
+      } else {
+        openLeftSidebar();
+      }
+    }
+  };
+  // Clean URL so refresh doesn't re-trigger
+  _urlParams.delete('sidebar');
+  _urlParams.delete('conversationId');
+  const cleanUrl = _urlParams.toString()
+    ? `${window.location.pathname}?${_urlParams.toString()}`
+    : window.location.pathname;
+  window.history.replaceState({}, '', cleanUrl);
+}
+
+// ─────────────────────────────────────────────
+// Dynamic Input Bar Height Tracking
+// ─────────────────────────────────────────────
+// Updates --input-bar-height CSS variable so quick-actions and scroll-fab
+// float above the input bar regardless of its height (future: thumbnails, tasks bar).
+if (typeof ResizeObserver !== 'undefined') {
+  const bottomBarWrapper = document.getElementById('bottom-bar-wrapper');
+  if (bottomBarWrapper) {
+    const inputBarObserver = new ResizeObserver(entries => {
+      for (const entry of entries) {
+        const h = entry.borderBoxSize?.[0]?.blockSize ?? entry.target.offsetHeight;
+        document.documentElement.style.setProperty('--input-bar-height', h + 'px');
+      }
+    });
+    inputBarObserver.observe(bottomBarWrapper);
+  }
+}
+
+// ─────────────────────────────────────────────
+// Running Tasks — Collapse Toggle
+// ─────────────────────────────────────────────
+runningTasksHeader.addEventListener('click', () => {
+  runningTasksCollapsed = !runningTasksCollapsed;
+  runningTasksList.classList.toggle('collapsed', runningTasksCollapsed);
+  runningTasks.querySelector('.running-tasks-arrow')
+    ?.classList.toggle('rotated', runningTasksCollapsed);
+});
+
+// Subagent back button: navigate back to parent conversation
+// Clicks the first link/button in AG's breadcrumb bar above the conversation-view
+subagentBackBtn.addEventListener('click', async () => {
+  subagentBackBtn.style.opacity = '0.5';
+  subagentBackBtn.style.pointerEvents = 'none';
+  // Reset client-side flag first
+  isInSubagentView = false;
+  isInputBoxHidden = false;
+
+  try {
+    // Click AG's breadcrumb/back link to navigate back to parent
+    await fetchAPI('/eval', {
+      method: 'POST',
+      body: JSON.stringify({
+        script: `(() => {
+          // Strategy 1: Click breadcrumb back link above conversation-view
+          const cv = document.querySelector('[data-testid="conversation-view"]') ||
+                     document.querySelector('.scrollbar-hide[class*="overflow-y-auto"]');
+          if (cv && cv.parentElement) {
+            for (const child of cv.parentElement.children) {
+              if (child === cv) break;
+              const link = child.querySelector('a, button, [role="link"], [class*="cursor-pointer"]');
+              if (link) { link.click(); return { ok: true, strategy: 'breadcrumb' }; }
+            }
+          }
+          // Strategy 2: Click browser back button equivalent
+          window.history.back();
+          return { ok: true, strategy: 'history_back' };
+        })()`
+      }),
+    });
+  } catch {}
+  setTimeout(() => {
+    subagentBackBtn.style.opacity = '';
+    subagentBackBtn.style.pointerEvents = '';
+  }, 500);
+  setTimeout(loadSnapshot, 300);
+  setTimeout(loadSnapshot, 1000);
+});
+
+// ─────────────────────────────────────────────
+// Fetch Wrapper (redirects to login on 401)
+// ─────────────────────────────────────────────
+async function fetchAPI(url, opts = {}) {
+  const res = await fetch(url, {
+    ...opts,
+    headers: {
+      'Content-Type': 'application/json',
+      // Skip ngrok browser warning if tunneled
+      'ngrok-skip-browser-warning': '1',
+      ...opts.headers,
+    },
+  });
+
+  if (res.status === 401) {
+    window.location.href = '/login.html';
+    throw new Error('Unauthorized');
+  }
+
+  return res;
+}
+
+// ─────────────────────────────────────────────
+// Client Telemetry — fire-and-forget
+// ─────────────────────────────────────────────
+function track(event, payload = {}) {
+  try {
+    fetch('/telemetry', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ event, ...payload }),
+    }).catch(() => {}); // swallow network errors
+  } catch {}
+}
+
+// Debug log — only active when server has AG2R_DEBUG=1
+// Posts events to /debug-log for unified timestamped server output
+function debugLog(event, detail) {
+  if (!debugMode) return;
+  try {
+    fetch('/debug-log', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ event, detail: detail != null ? String(detail) : '' }),
+    }).catch(() => {});
+  } catch {}
+}
+
+// Global error tracking
+window.addEventListener('error', (e) => {
+  track('client_error', { message: (e.message || '').substring(0, 200) });
+});
+window.addEventListener('unhandledrejection', (e) => {
+  const msg = e.reason?.message || String(e.reason || '');
+  track('client_error', { message: msg.substring(0, 200) });
+});
+
+// ─────────────────────────────────────────────
+// WebSocket Connection
+// ─────────────────────────────────────────────
+let wsReconnectDelay = 1000;
+
+function connectWebSocket() {
+  const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+  const wsUrl = `${protocol}//${location.host}`;
+
+  ws = new WebSocket(wsUrl);
+
+  ws.onopen = () => {
+    debugLog('ws', 'connected');
+    debugLog('ws-open');
+    wsReconnectDelay = 1000;
+    updateConnectionStatus('connected');
+    // Tell server whether app is in foreground
+    sendVisibility();
+  };
+
+  ws.onmessage = (event) => {
+    try {
+      const data = JSON.parse(event.data);
+
+      switch (data.type) {
+        case 'snapshot':
+          // Only reload if content actually changed
+          if (data.hash !== lastHash) {
+            loadSnapshot();
+          }
+          if (data.agentRunning !== undefined) {
+            agentRunning = data.agentRunning;
+            updateActionButton();
+            // Don't show quick actions on new session page or subagent view
+            quickActions?.classList.toggle('hidden', agentRunning || isInputBoxHidden);
+          }
+          break;
+
+        case 'status':
+          if (data.agentRunning !== undefined) {
+            agentRunning = data.agentRunning;
+            updateActionButton();
+            quickActions?.classList.toggle('hidden', agentRunning || isInputBoxHidden);
+          }
+          break;
+
+        case 'connection':
+          cdpConnected = data.cdpConnected;
+          if (data.debugMode !== undefined) debugMode = data.debugMode;
+          if (data.featureFlags) featureFlags = data.featureFlags;
+          updateConnectionStatus(cdpConnected ? 'connected' : 'reconnecting');
+          if (!cdpConnected) {
+            updateEmptyState('Waiting for Antigravity connection...');
+          }
+          // Eager coffee link injection — appears immediately on WS connect
+          if (featureFlags.showCoffeeLink && !leftSidebarContent.querySelector('.ag2r-coffee-sidebar-btn')) {
+            leftSidebarContent.insertAdjacentHTML('beforeend',
+              `<a class="ag2r-coffee-sidebar-btn" href="https://buymeacoffee.com/omercanyy" target="_blank">
+                <span class="material-symbols-rounded">local_cafe</span>
+                Buy me a coffee
+              </a>`);
+            leftSidebarContent.querySelector('.ag2r-coffee-sidebar-btn')?.addEventListener('click', () => track('coffee_link_clicked'));
+          }
+          break;
+
+        case 'error':
+          if (data.message === 'Unauthorized') {
+            window.location.href = '/login.html';
+          }
+          break;
+      }
+    } catch (e) {
+      debugLog('ws', 'parse error: ' + e);
+    }
+  };
+
+  ws.onclose = () => {
+    debugLog('ws', 'disconnected, reconnecting in ' + wsReconnectDelay + 'ms');
+    debugLog('ws-close');
+    updateConnectionStatus('disconnected');
+    ws = null;
+    setTimeout(connectWebSocket, wsReconnectDelay);
+    wsReconnectDelay = Math.min(wsReconnectDelay * 1.5, 10000);
+  };
+
+  ws.onerror = () => {
+    // onclose will fire after this
+  };
+}
+
+// Tell server whether the app is in the foreground (controls push suppression)
+function sendVisibility() {
+  if (ws?.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({ type: 'visibility', visible: document.visibilityState === 'visible' }));
+  }
+}
+document.addEventListener('visibilitychange', sendVisibility);
+
+// ─────────────────────────────────────────────
+// Snapshot Loading & Rendering
+// ─────────────────────────────────────────────
+async function loadSnapshot() {
+  try {
+    const res = await fetchAPI(`/snapshot?t=${Date.now()}`);
+
+    if (res.status === 503) {
+      // No snapshot yet — show empty state but DON'T wipe existing content
+      if (!chatContent.innerHTML.trim()) {
+        showEmptyState();
+      }
+      return;
+    }
+
+    if (!res.ok) return;
+
+    const data = await res.json();
+
+    // Skip re-render if content hasn't changed — prevents destroying text
+    // selection when polling returns identical content (e.g. agent idle).
+    if (data.hash && data.hash === lastHash) return;
+
+    // Update hash
+    lastHash = data.hash;
+
+    // Pick up debug mode flag from server
+    if (data.debugMode !== undefined) debugMode = data.debugMode;
+
+    // Update agent status
+    // agentRunning is set exclusively by WS handlers (snapshot/status messages).
+    // Do NOT set it here — the HTTP response can be stale vs the WS push.
+
+    // Pre-render anchor: snapshot whether we're at the bottom BEFORE injecting
+    // new content. Large content chunks can push scroll position away from bottom,
+    // so checking after render would give a false "user scrolled away" signal.
+    const wasAtBottom = chatArea.scrollHeight - chatArea.scrollTop - chatArea.clientHeight < 50;
+
+    // Inject CSS (Antigravity's stylesheets) into all panels
+    if (data.css) {
+      cdpStyles.textContent = data.css;
+      leftSidebarCdpStyles.textContent = data.css;
+      rightSidebarCdpStyles.textContent = data.css;
+    }
+
+
+    // On the new session page, the input-wrapper lives inside the captured zone
+    // (replacing AG's editor). Detach it before updating, then re-insert after.
+    const capturedZone = chatContent.querySelector('.ag2r-ns-captured');
+    const skipChatRender = data.isNewSessionPage && capturedZone;
+
+    if (skipChatRender) {
+      // Only update if captured content actually changed — avoids
+      // detach/reattach of the input-wrapper which steals keyboard focus.
+      if (data.html !== capturedZone.dataset.lastHtml) {
+        capturedZone.dataset.lastHtml = data.html;
+
+        const wrapper = capturedZone.querySelector('.input-wrapper');
+        if (wrapper) wrapper.remove();
+
+        capturedZone.innerHTML = data.html;
+        processNewSessionCapture(capturedZone);
+        addClickProxyHandlers(capturedZone);
+
+        // Re-insert the input-wrapper, replacing the fresh editor clone
+        if (wrapper) {
+          const editor = capturedZone.querySelector('[contenteditable]')
+            || capturedZone.querySelector('[data-lexical-editor]')
+            || capturedZone.querySelector('[role="textbox"]');
+          if (editor) editor.replaceWith(wrapper);
+          else capturedZone.appendChild(wrapper);
+        }
+      }
+    } else {
+      // Detect conversation switch by fingerprinting the first portion of content.
+      // Only reset scroll on actual conversation changes, not on content updates
+      // (which happen every snapshot during agent streaming).
+      const fingerprint = data.html ? data.html.slice(0, 200) : '';
+      if (fingerprint !== _lastContentFingerprint) {
+        _lastContentFingerprint = fingerprint;
+        userScrolledAway = false;
+        // Conversation changed — close the right sidebar to prevent stale
+        // isSidebarOpen state from briefly opening the artifacts panel.
+        // The next snapshot will re-open it if AG's sidebar is truly open.
+        if (rightSidebar.classList.contains('open')) {
+          rightSidebar.classList.remove('open');
+          rightSidebar.inert = true;
+          rightSidebarOverlay.classList.remove('visible');
+        }
+      }
+
+      // Rescue the input-wrapper back to the footer before wiping chatContent.
+      // It may have been moved into the captured zone by renderNewSessionPage.
+      const movedWrapper = chatContent.querySelector('.input-wrapper');
+      if (movedWrapper) {
+        // Unhide the model chip (hidden while inside captured zone)
+        const chip = movedWrapper.querySelector('#model-chip');
+        if (chip) chip.style.display = '';
+        inputBar.appendChild(movedWrapper);
+      }
+
+      // Skip innerHTML replacement while user is actively scrolling an inner
+      // container (touch + momentum). Missing a 1-2s update is fine; destroying
+      // the DOM mid-scroll kills momentum and feels glitchy.
+      if (_innerScrollTouchActive) {
+        console.debug('[InnerScroll] skipping render — touch active');
+        return;
+      }
+
+      saveInnerScrollPositions(chatContent);
+      chatContent.innerHTML = data.html;
+      restoreInnerScrollPositions(chatContent);
+      hideEmptyState();
+
+      // If this is the new session page, process captured HTML and overlay AG2R's input form
+      if (data.isNewSessionPage) {
+        renderNewSessionPage(chatContent, data);
+        // Close sidebar when transitioning to new session page (+ button)
+        closeLeftSidebar();
+      }
+
+      // Hide bottom input bar when AG's input box is hidden (subagent view, etc.)
+      // Also hidden on new session page — the input-wrapper is moved into the captured view.
+      const hideBottomBar = data.isNewSessionPage || data.isInputBoxHidden;
+      inputBar.classList.toggle('hidden', hideBottomBar);
+      if (hideBottomBar) quickActions.classList.add('hidden');
+
+      // Update client-side flags from server detection (used by WS handlers)
+      isInSubagentView = !!data.isSubagentView;
+      isInputBoxHidden = !!(data.isNewSessionPage || data.isInputBoxHidden);
+
+      // Subagent view: show back bar + yellow border indicator + info panel
+      if (data.isSubagentView) {
+        const displayName = data.parentConversationName || 'Parent';
+        subagentParentName.textContent = displayName;
+        subagentBar.classList.remove('hidden');
+        chatArea.classList.add('subagent-view');
+        // Render captured subagent info (cannot prompt + overview button)
+        if (data.subagentInfoHtml && data.subagentInfoHtml !== subagentInfo.dataset.lastHtml) {
+          subagentInfo.dataset.lastHtml = data.subagentInfoHtml;
+          subagentInfo.innerHTML = data.subagentInfoHtml;
+          addClickProxyHandlers(subagentInfo);
+        }
+        subagentInfo.classList.toggle('hidden', !data.subagentInfoHtml);
+      } else {
+        subagentBar.classList.add('hidden');
+        chatArea.classList.remove('subagent-view');
+        subagentInfo.classList.add('hidden');
+        subagentInfo.dataset.lastHtml = '';
+      }
+
+      // Render captured Side Question (BTW) panel
+      if (btwPanel) {
+        if (data.btwHtml && data.btwHtml !== btwPanel.dataset.lastHtml) {
+          btwPanel.dataset.lastHtml = data.btwHtml;
+          btwPanel.innerHTML = data.btwHtml;
+          addClickProxyHandlers(btwPanel);
+        }
+        btwPanel.classList.toggle('hidden', !data.btwHtml);
+        if (!data.btwHtml) {
+          btwPanel.dataset.lastHtml = '';
+        }
+      }
+
+
+      // Add mobile copy buttons to code blocks (deferred to avoid forced reflow after innerHTML)
+      requestAnimationFrame(() => addMobileCopyButtons());
+
+      // Wire up click proxying for interactive elements
+      addClickProxyHandlers(chatContent);
+    }
+
+    // Update model chip in input bar from server-extracted name (existing conversations)
+    updateModelChip(data.modelName);
+
+    // Render left sidebar with AG's captured content (always, even when skipping chat)
+    isRendering = true;
+    renderSidebar(leftSidebarContent, data.leftSidebarHtml);
+    addClickProxyHandlers(leftSidebarContent);
+    // Trigger deferred sidebar open from ?sidebar=open URL param (push notification click)
+    if (window._ag2rSidebarOpenHook) window._ag2rSidebarOpenHook();
+
+    // Right sidebar: mirror AG's sidebar state from snapshots.
+    // This is the same pattern as chat content — just show what AG shows.
+    if (data.sidebarSignature !== undefined) {
+      const sigChanged = data.sidebarSignature !== lastSidebarSignature;
+      lastSidebarSignature = data.sidebarSignature;
+      // Refresh content if sidebar is open and tabs changed
+      if (sigChanged && rightSidebar.classList.contains('open')) {
+        fetchRightSidebar();
+      }
+    }
+    if (data.isSidebarOpen !== undefined) {
+      const ag2rIsOpen = rightSidebar.classList.contains('open');
+      debugLog('sidebar-mirror', `AG:${data.isSidebarOpen} AG2R:${ag2rIsOpen} sig:${data.sidebarSignature}`);
+      if (data.isSidebarOpen && !ag2rIsOpen) {
+        debugLog('sidebar-mirror', 'opening');
+        openRightSidebar();
+      } else if (!data.isSidebarOpen && ag2rIsOpen) {
+        debugLog('sidebar-mirror', 'closing');
+        rightSidebar.classList.remove('open');
+        rightSidebar.inert = true;
+        rightSidebarOverlay.classList.remove('visible');
+        updateReviewToggleIcon();
+      }
+    }
+
+    // Render dropdown overlay if AG has a portal menu open (e.g., three-dots conversation menu)
+    // Skip if user just dismissed (prevents stale snapshots from re-opening within the
+    // /dismiss-portal round-trip window). 300ms covers the CDP round-trip (~100ms) safely;
+    // 2000ms was too long and caused every-other-open to be suppressed.
+    const suppressOverlay = Date.now() - overlayDismissedAt < 300;
+    if (data.dropdownHtml && !suppressOverlay) {
+      const tempDiv = document.createElement('div');
+      tempDiv.innerHTML = data.dropdownHtml;
+      const allBtns = tempDiv.querySelectorAll('[data-ag-click-id]');
+      if (allBtns.length > 0) {
+        // Options to hide from dropdown menus (e.g., Rename triggers inline sidebar edit, unusable in AG2R)
+        const HIDDEN_DROPDOWN_OPTIONS = /^rename$/i;
+        // Detect typeahead (items have role="option") vs kebab/context menus
+        const isTypeahead = tempDiv.querySelector('[role="option"]') !== null;
+        let buttonsHtml = '';
+        allBtns.forEach(btn => {
+          const text = btn.textContent.trim();
+          if (HIDDEN_DROPDOWN_OPTIONS.test(text)) return;
+          const id = btn.dataset.agClickId;
+          const label = btn.dataset.agClickLabel || text;
+          if (isTypeahead) {
+            // Preserve inner HTML structure for typeahead items (icon + name + description spans)
+            buttonsHtml += `<div role="option" data-ag-click-id="${id}" data-ag-click-label="${label}">${btn.innerHTML}</div>`;
+          } else {
+            const isDestructive = /delete|remove/i.test(text);
+            const cls = isDestructive ? 'destructive' : '';
+            buttonsHtml += `<button class="${cls}" data-ag-click-id="${id}" data-ag-click-label="${label}">${text}</button>`;
+          }
+        });
+        dropdownContent.innerHTML = buttonsHtml;
+        addClickProxyHandlers(dropdownContent);
+        dropdownOverlay.classList.remove('hidden');
+      }
+    } else if (!data.dropdownHtml && !data.dialogHtml) {
+      // Only hide overlay if neither dropdown nor dialog is active
+      dropdownOverlay.classList.add('hidden');
+    }
+
+    // Render dialog modal if AG has one open (e.g., delete confirmation, environment selector)
+    if (data.dialogHtml && !suppressOverlay) {
+      // Dedup: skip re-render if dialog HTML hasn't changed (prevents flicker from polling)
+      if (data.dialogHtml !== dropdownContent.dataset.lastDialogHtml) {
+        dropdownContent.dataset.lastDialogHtml = data.dialogHtml;
+      const tempDiv = document.createElement('div');
+      tempDiv.innerHTML = data.dialogHtml;
+      // Extract buttons with click IDs
+      const dialogBtns = tempDiv.querySelectorAll('[data-ag-click-id]');
+      // AG's collapsible section headers ("Worked for 35s", "Thought for 27s", etc.)
+      // are rendered as <button> elements and get captured alongside actual dialog buttons.
+      // Filter them out so only real action buttons (Skip, Submit, options) appear.
+      const AG_SECTION_BUTTON = /^(Worked|Thought|Analyzed|Ran) for\b/i;
+      if (dialogBtns.length > 0) {
+        // Build buttons from tagged interactive elements
+        let buttonsHtml = '';
+        dialogBtns.forEach(btn => {
+          const text = btn.textContent.trim();
+          if (!text) return; // Skip empty buttons (e.g., close X icon)
+          if (AG_SECTION_BUTTON.test(text)) return; // Skip AG collapsible section headers
+          const id = btn.dataset.agClickId;
+          const label = btn.dataset.agClickLabel || text;
+          const isDestructive = text.toLowerCase().includes('delete');
+          const isCancel = text.toLowerCase().includes('cancel');
+          const cls = isDestructive ? 'destructive' : (isCancel ? 'cancel' : '');
+          buttonsHtml += `<button class="${cls}" data-ag-click-id="${id}" data-ag-click-label="${label}">${text}</button>`;
+        });
+
+        // Extract title/message from the dialog — look for section headers or short text nodes
+        const root = tempDiv.firstElementChild;
+        const isPopover = root && root.getAttribute('role') === 'dialog';
+
+        if (isPopover) {
+          // Popover dialog (environment selector, context menus)
+          // Rebuild with section headers and separators from the original HTML
+          let popoverHtml = '';
+          const walker = root.querySelector('[class*="overflow-y-auto"]') || root;
+          for (const child of walker.children) {
+            // Separator
+            if (child.classList.contains('border-t') || child.tagName === 'HR') {
+              popoverHtml += '<div class="dropdown-separator"></div>';
+              continue;
+            }
+            // Section header (e.g. "Previous Worktrees")
+            const isHeader = child.classList.contains('text-muted-foreground') &&
+              child.classList.contains('text-xs') && !child.querySelector('button');
+            if (isHeader) {
+              popoverHtml += `<div class="dropdown-header">${child.textContent.trim()}</div>`;
+              continue;
+            }
+            // Tagged buttons inside this child — find ALL, not just the first
+            const taggedEls = child.querySelectorAll('[data-ag-click-id]');
+            const selfTagged = child.dataset?.agClickId ? [child] : [];
+            const allTagged = taggedEls.length > 0 ? taggedEls : selfTagged;
+            allTagged.forEach(tagged => {
+              const text = tagged.textContent.trim();
+              if (AG_SECTION_BUTTON.test(text)) return; // Skip AG collapsible section headers
+              const id = tagged.dataset.agClickId;
+              const label = tagged.dataset.agClickLabel || text;
+              const isDestructive = /delete|remove/i.test(text);
+              popoverHtml += `<button class="${isDestructive ? 'destructive' : ''}" data-ag-click-id="${id}" data-ag-click-label="${label}">${text}</button>`;
+            });
+          }
+          // Use whichever extraction produced more content — the walker may miss items
+          // when the dialog has nested containers (e.g., project picker wraps items).
+          dropdownContent.innerHTML = (popoverHtml.length >= buttonsHtml.length) ? popoverHtml : (buttonsHtml || popoverHtml);
+        } else {
+          // Modal dialog (undo confirmation, delete, etc.)
+          // Render AG's native HTML directly with AG's CSS applied.
+          // Find the inner dialog card (the visible panel, not the backdrop).
+          const root = tempDiv.firstElementChild;
+          let dialogCard = null;
+          if (root) {
+            // Walk all descendants to find the card — the deepest element
+            // with rounded corners that contains the action buttons.
+            const candidates = root.querySelectorAll('[class*="rounded"]');
+            for (const c of candidates) {
+              if (c.querySelector('[data-ag-click-id]')) {
+                dialogCard = c;
+                // Don't break — keep going deeper to find the most specific card
+              }
+            }
+          }
+          const dialogInnerHtml = dialogCard ? dialogCard.outerHTML : (root ? root.innerHTML : data.dialogHtml);
+          dropdownContent.innerHTML = `
+            <style>${cdpStyles.textContent || ''}</style>
+            <div class="ag2r-dialog-native">${dialogInnerHtml}</div>
+          `;
+        }
+        addClickProxyHandlers(dropdownContent);
+      }
+      }
+      // Always keep overlay visible while dialog is active (even on deduped renders)
+      dropdownOverlay.classList.remove('hidden');
+    } else if (!data.dialogHtml) {
+      // Dialog dismissed in AG — clear the cached HTML so it re-renders if it comes back
+      delete dropdownContent.dataset.lastDialogHtml;
+    }
+
+    // Render permission banner or ask_question modal if AG is asking for approval/input.
+    // Both use the same permissionOverlay container — they're mutually exclusive
+    // (capture.js guards against both being set simultaneously).
+    const approvalHtml = data.askQuestionHtml || data.permissionHtml;
+    if (approvalHtml) {
+      if (approvalHtml === permissionContent.dataset.lastHtml) {
+        // Skip: identical HTML
+      } else {
+      // Only save/restore textarea state when the SAME dialog is re-rendering
+      // (AG oscillation). For brand new dialogs, don't carry over old text.
+      const isUpdate = !!permissionContent.dataset.lastHtml;
+      const prevTA = isUpdate ? permissionContent.querySelector('.ag2r-permission-native label textarea') : null;
+      const savedValue = prevTA ? prevTA.value : '';
+      const wasFocused = prevTA && document.activeElement === prevTA;
+
+      permissionContent.dataset.lastHtml = approvalHtml;
+
+      // Render AG's captured HTML natively with AG's CSS — same approach as dialog native.
+      // No rebuild, no text extraction: just display exactly what AG shows, sized for mobile.
+      permissionContent.innerHTML = `
+        <style>${cdpStyles.textContent || ''}</style>
+        <div class="ag2r-permission-native">${approvalHtml}</div>
+      `;
+
+      // Restore textarea value and focus if same dialog re-rendered while user was typing
+      const writeInTA = permissionContent.querySelector('.ag2r-permission-native label textarea');
+      if (writeInTA) {
+        if (savedValue) writeInTA.value = savedValue;
+        // Auto-focus write-in textarea if its radio option is selected
+        const writeInLabel = writeInTA.closest('label');
+        const isChecked = writeInLabel?.querySelector('[data-state="checked"]');
+        if (wasFocused || isChecked) writeInTA.focus();
+      }
+
+      // Wire click proxying for all tagged elements (labels and buttons)
+      addClickProxyHandlers(permissionContent);
+
+      // Replace Submit button handler: use POST /submit-dialog for atomic inject+click.
+      // Skip button and radio labels keep their normal click proxy handlers.
+      const submitBtns = permissionContent.querySelectorAll('button[data-ag-click-id]');
+      submitBtns.forEach(btn => {
+        const text = (btn.textContent || '').trim();
+        if (!/submit/i.test(text)) return;
+
+        const clickId = btn.dataset.agClickId;
+        const clickLabel = btn.dataset.agClickLabel;
+        // Remove the handler that addClickProxyHandlers wired, replace with our own
+        btn.replaceWith(btn.cloneNode(true));
+        const newBtn = permissionContent.querySelector(`[data-ag-click-id="${clickId}"]`);
+        if (!newBtn) return;
+
+        // Force Submit button to always look enabled (AG may show it disabled
+        // because its textarea is empty — we inject text server-side on submit)
+        newBtn.style.opacity = '1';
+        newBtn.style.pointerEvents = 'auto';
+        newBtn.removeAttribute('disabled');
+
+        newBtn.addEventListener('click', async () => {
+          // Read only the write-in textarea (inside label), not command display textareas
+          const writeInEl = permissionContent.querySelector('.ag2r-permission-native label textarea');
+          const writeInText = writeInEl?.value?.trim() || '';
+          try {
+            await fetchAPI('/submit-dialog', {
+              method: 'POST',
+              body: JSON.stringify({ text: writeInText, clickId, label: clickLabel }),
+            });
+          } catch {}
+          permissionOverlay.classList.add('hidden');
+          permissionContent.dataset.lastHtml = '';
+        });
+      });
+
+      } // end cache-check else
+      permissionOverlay.classList.remove('hidden');
+    } else {
+      permissionOverlay.classList.add('hidden');
+      permissionContent.dataset.lastHtml = '';
+
+    }
+
+    // Render running tasks strip if AG has background tasks
+    if (data.runningTasksHtml) {
+      // Skip re-render if HTML hasn't changed
+      if (data.runningTasksHtml !== runningTasks.dataset.lastHtml) {
+        runningTasks.dataset.lastHtml = data.runningTasksHtml;
+        const tempDiv = document.createElement('div');
+        tempDiv.innerHTML = data.runningTasksHtml;
+
+        // Extract individual task rows
+        const allButtons = tempDiv.querySelectorAll('[data-ag-click-id]');
+        const buttonArray = Array.from(allButtons);
+
+        // Defense-in-depth: real task/goal sections have >= 2 tagged buttons
+        // (1 header toggle + at least 1 name button). If AG sends a structural
+        // wrapper with no real items, treat as empty.
+        if (buttonArray.length < 2) {
+          runningTasks.classList.add('hidden');
+          runningTasks.dataset.lastHtml = '';
+        } else {
+          // Extract header text (e.g., "1 task running", "1 active goal")
+          const headerBtn = tempDiv.querySelector('button');
+          const headerSpan = headerBtn?.querySelector('span');
+          runningTasksCount.textContent = headerSpan ? headerSpan.textContent.trim() : 'Tasks running';
+
+          // Build rows from tagged buttons after the header (task:0).
+          // Tasks have: name button + stop button (empty label = icon-only).
+          // Goals have: name button only (no stop button).
+          // Detect by checking if the next button has an empty label (stop icon).
+          let rowsHtml = '';
+
+          let i = 1; // Skip header toggle (task:0)
+          while (i < buttonArray.length) {
+            const nameBtn = buttonArray[i];
+            const nameClickId = nameBtn?.dataset?.agClickId || '';
+            const nameLabel = nameBtn?.dataset?.agClickLabel || '';
+
+            // Check if the next button is a stop button (empty text = icon-only)
+            const nextBtn = buttonArray[i + 1];
+            const nextIsStop = nextBtn && (nextBtn.dataset?.agClickLabel || '').trim() === '';
+
+            // Extract task name from the font-mono span inside the name button
+            const monoSpan = nameBtn?.querySelector('.font-mono');
+            const taskName = monoSpan ? monoSpan.textContent.trim() : (nameLabel || 'Task');
+
+            if (nextIsStop) {
+              // Task row: name + stop button pair
+              const stopClickId = nextBtn.dataset?.agClickId || '';
+              const stopLabel = nextBtn.dataset?.agClickLabel || '';
+              rowsHtml += `
+                <div class="running-task-row">
+                  <button class="running-task-name" data-ag-click-id="${nameClickId}" data-ag-click-label="${nameLabel}">
+                    <div class="running-task-spinner"></div>
+                    <span>${taskName}</span>
+                  </button>
+                  <button class="running-task-stop" data-ag-click-id="${stopClickId}" data-ag-click-label="${stopLabel}" aria-label="Stop task">
+                    <span class="material-symbols-rounded" style="font-size:18px">stop_circle</span>
+                  </button>
+                </div>
+              `;
+              i += 2;
+            } else {
+              // Goal row: name button only (no stop)
+              rowsHtml += `
+                <div class="running-task-row">
+                  <button class="running-task-name running-task-goal" data-ag-click-id="${nameClickId}" data-ag-click-label="${nameLabel}">
+                    <div class="running-task-spinner"></div>
+                    <span>${taskName}</span>
+                  </button>
+                </div>
+              `;
+              i += 1;
+            }
+          }
+
+          runningTasksList.innerHTML = rowsHtml;
+
+          // Wire click proxying for task name (navigate) and stop (kill)
+          runningTasksList.querySelectorAll('[data-ag-click-id]').forEach(btn => {
+            const clickId = btn.dataset.agClickId;
+            const clickLabel = btn.dataset.agClickLabel;
+            const isNameBtn = btn.classList.contains('running-task-name');
+            btn.removeAttribute('data-ag-click-id');
+            btn.addEventListener('click', async () => {
+              btn.style.opacity = '0.5';
+              btn.style.pointerEvents = 'none';
+              try {
+                await fetchAPI('/click', {
+                  method: 'POST',
+                  body: JSON.stringify({ clickId, label: clickLabel }),
+                });
+              } catch {}
+              // Task name click: the click proxy navigates AG.
+
+              setTimeout(() => {
+                btn.style.opacity = '';
+                btn.style.pointerEvents = '';
+              }, 500);
+              // Refresh snapshot to pick up the subagent conversation view
+              setTimeout(loadSnapshot, 300);
+              setTimeout(loadSnapshot, 1000);
+            });
+          });
+
+          // Restore collapse state
+          runningTasksList.classList.toggle('collapsed', runningTasksCollapsed);
+          runningTasks.querySelector('.running-tasks-arrow')
+            ?.classList.toggle('rotated', runningTasksCollapsed);
+          runningTasks.classList.remove('hidden');
+        }
+      }
+    } else {
+      runningTasks.classList.add('hidden');
+      runningTasks.dataset.lastHtml = '';
+    }
+
+    // Render Settings overlay if AG's settings modal is open
+    if (data.settingsHtml) {
+      // Only update DOM when content actually changes to preserve scroll position
+      if (settingsContent._lastHtml !== data.settingsHtml) {
+        settingsContent._lastHtml = data.settingsHtml;
+        settingsContent.innerHTML = data.settingsHtml;
+        addClickProxyHandlers(settingsContent);
+      }
+      settingsOverlay.classList.remove('hidden');
+    } else {
+      settingsOverlay.classList.add('hidden');
+      settingsContent._lastHtml = '';
+    }
+
+    // Render Scheduled Tasks overlay if AG's scheduled tasks page is open
+    if (data.scheduledTasksHtml) {
+      if (scheduledTasksContent._lastHtml !== data.scheduledTasksHtml) {
+        scheduledTasksContent._lastHtml = data.scheduledTasksHtml;
+        scheduledTasksContent.innerHTML = data.scheduledTasksHtml;
+        addClickProxyHandlers(scheduledTasksContent);
+      }
+      scheduledTasksOverlay.classList.remove('hidden');
+    } else {
+      scheduledTasksOverlay.classList.add('hidden');
+      scheduledTasksContent._lastHtml = '';
+    }
+
+    // Render Scheduled Tasks dialog (New Scheduled Task form, etc.)
+    if (data.scheduledTasksDialogHtml) {
+      if (scheduledTasksDialog._lastHtml !== data.scheduledTasksDialogHtml) {
+        scheduledTasksDialog._lastHtml = data.scheduledTasksDialogHtml;
+        scheduledTasksDialog.innerHTML = data.scheduledTasksDialogHtml;
+        addClickProxyHandlers(scheduledTasksDialog);
+      }
+      scheduledTasksDialog.classList.remove('hidden');
+    } else {
+      scheduledTasksDialog.classList.add('hidden');
+      scheduledTasksDialog._lastHtml = '';
+    }
+
+    // Render Conversation History overlay if AG's history page is open
+    if (data.conversationHistoryHtml) {
+      if (conversationHistoryContent._lastHtml !== data.conversationHistoryHtml) {
+        conversationHistoryContent._lastHtml = data.conversationHistoryHtml;
+        conversationHistoryContent.innerHTML = data.conversationHistoryHtml;
+        addClickProxyHandlers(conversationHistoryContent);
+      }
+      conversationHistoryOverlay.classList.remove('hidden');
+    } else {
+      conversationHistoryOverlay.classList.add('hidden');
+      conversationHistoryContent._lastHtml = '';
+    }
+
+    // Track active artifact URI for commenting
+    updateActiveArtifact(data);
+
+    // Telemetry: detect model/branch/worktree changes
+    if (data.modelName && _prevModelName && data.modelName !== _prevModelName) {
+      track('model_changed');
+    }
+    if (data.modelName) _prevModelName = data.modelName;
+
+    if (data.branchName && _prevBranchName && data.branchName !== _prevBranchName) {
+      track('branch_changed');
+    }
+    if (data.branchName) _prevBranchName = data.branchName;
+
+    if (data.environmentName && _prevEnvironmentName && data.environmentName !== _prevEnvironmentName) {
+      track('worktree_changed');
+    }
+    if (data.environmentName) _prevEnvironmentName = data.environmentName;
+
+    // Scroll-to-bottom uses a pre-render anchor: wasAtBottom was captured BEFORE
+    // content injection (see above). If the user was at the bottom before the
+    // render, keep them there — regardless of how far new content pushed them.
+    // If they deliberately scrolled away (userScrolledAway), leave them alone.
+    requestAnimationFrame(() => {
+      if (!userScrolledAway && wasAtBottom) {
+        chatArea.scrollTop = chatArea.scrollHeight;
+      }
+      // Clear isRendering AFTER scroll is set — the scroll listener skips
+      // events while isRendering is true, preventing our programmatic scroll
+      // from triggering the 3-second user lock.
+      requestAnimationFrame(() => {
+        isRendering = false;
+        updateScrollFab();
+      });
+    });
+
+  } catch (e) {
+    debugLog('snapshot', 'load error: ' + e.message);
+  }
+}
+
+// ─────────────────────────────────────────────
+// Inner Scroll Preservation
+// ─────────────────────────────────────────────
+// AG renders scrollable containers inside chat messages (e.g. the browser
+// preview box with max-h-[20vh] overflow-y-auto). When chatContent.innerHTML
+// is replaced, their scrollTop resets to 0. This mirrors the parent chat's
+// wasAtBottom/userScrolledAway pattern for nested scrollable containers.
+//
+// Approach: before innerHTML replacement, snapshot the scroll state of each
+// inner scrollable container. After replacement, find the same containers
+// in the new DOM and either auto-scroll to bottom (default) or restore the
+// user's scroll position (if they scrolled away from bottom).
+
+// Persistent state: tracks whether the user scrolled away in each container.
+// Keyed by a class-based signature so it survives innerHTML replacement.
+const _innerScrollState = new Map(); // key → { scrollTop, userScrolledAway }
+
+// Touch tracking: skip scroll restoration while user is actively scrolling
+// (touchstart → touchend + momentum settle), preventing innerHTML replacement
+// from killing momentum/inertia scroll.
+let _innerScrollTouchActive = false;
+let _innerScrollSettleTimer = null;
+const INNER_SCROLL_SETTLE_MS = 1200; // momentum settle time after touchend
+
+chatContent.addEventListener('touchstart', (e) => {
+  // Only track if touch started on/inside a scrollable inner container
+  const scrollable = e.target.closest('[class*="overflow-y-auto"], [class*="overflow-y-scroll"]');
+  if (scrollable && scrollable !== chatArea && chatContent.contains(scrollable)) {
+    _innerScrollTouchActive = true;
+    if (_innerScrollSettleTimer) {
+      clearTimeout(_innerScrollSettleTimer);
+      _innerScrollSettleTimer = null;
+    }
+    console.debug('[InnerScroll] touch start — pausing restore');
+  }
+}, { passive: true });
+
+chatContent.addEventListener('touchend', () => {
+  if (_innerScrollTouchActive) {
+    // Wait for momentum to settle before resuming scroll restoration
+    _innerScrollSettleTimer = setTimeout(() => {
+      _innerScrollTouchActive = false;
+      _innerScrollSettleTimer = null;
+      console.debug('[InnerScroll] momentum settled — resuming restore');
+    }, INNER_SCROLL_SETTLE_MS);
+  }
+}, { passive: true });
+
+function getScrollableContainers(root) {
+  // Find containers with AG's overflow-y-auto pattern and constrained height
+  const results = [];
+  root.querySelectorAll('[class*="overflow-y-auto"], [class*="overflow-y-scroll"]').forEach(el => {
+    if (el.scrollHeight > el.clientHeight) {
+      results.push(el);
+    }
+  });
+  return results;
+}
+
+function getContainerKey(el) {
+  // Build a key from the element's class list (stable across innerHTML swaps)
+  // plus its position index among siblings with the same classes (for duplicates)
+  const cls = (el.className || '').toString().trim();
+  let idx = 0;
+  if (el.parentElement) {
+    for (const sib of el.parentElement.children) {
+      if (sib === el) break;
+      if ((sib.className || '').toString().trim() === cls) idx++;
+    }
+  }
+  return cls + '#' + idx;
+}
+
+function saveInnerScrollPositions(container) {
+  for (const el of getScrollableContainers(container)) {
+    const key = getContainerKey(el);
+    const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 30;
+    _innerScrollState.set(key, {
+      scrollTop: el.scrollTop,
+      userScrolledAway: !nearBottom && el.scrollTop > 0,
+    });
+  }
+}
+
+function restoreInnerScrollPositions(container) {
+  for (const el of getScrollableContainers(container)) {
+    const key = getContainerKey(el);
+    const saved = _innerScrollState.get(key);
+    if (saved && saved.userScrolledAway) {
+      // User scrolled away from bottom — preserve their position
+      el.scrollTop = saved.scrollTop;
+      console.debug('[InnerScroll] restore:', key.substring(0, 40), 'scrollTop=', saved.scrollTop);
+    } else {
+      // Default: auto-scroll to bottom to show latest content
+      el.scrollTop = el.scrollHeight;
+    }
+  }
+}
+
+// ─────────────────────────────────────────────
+// Scroll Management
+// ─────────────────────────────────────────────
+const SCROLL_THRESHOLD = 10; // px from bottom to count as "near bottom"
+
+function isNearBottom() {
+  const { scrollTop, scrollHeight, clientHeight } = chatArea;
+  return scrollHeight - scrollTop - clientHeight < SCROLL_THRESHOLD;
+}
+
+function scrollToBottom() {
+  chatArea.scrollTop = chatArea.scrollHeight;
+}
+
+function updateScrollFab() {
+  const distFromBottom = chatArea.scrollHeight - chatArea.scrollTop - chatArea.clientHeight;
+  if (distFromBottom > 100) {
+    scrollFab.classList.add('visible');
+  } else {
+    scrollFab.classList.remove('visible');
+  }
+}
+
+chatArea.addEventListener('scroll', () => {
+  // Always update the scroll FAB visibility regardless of rendering state
+  updateScrollFab();
+  // Only track user scroll intent when NOT rendering (programmatic scroll shouldn't lock user out)
+  if (isRendering) return;
+  // Flat 50px threshold: the pre-render anchor in loadSnapshot() handles
+  // stickiness during streaming. This listener only needs to detect when the
+  // user deliberately scrolls away (small escape distance = responsive UX).
+  const nearBottom = chatArea.scrollHeight - chatArea.scrollTop - chatArea.clientHeight < 50;
+  userScrolledAway = !nearBottom;
+}, { passive: true });
+
+scrollFab.addEventListener('click', () => {
+  debugLog('scroll', `FAB clicked. scrollHeight=${chatArea.scrollHeight} scrollTop=${chatArea.scrollTop} clientHeight=${chatArea.clientHeight}`);
+  userScrolledAway = false;
+  chatArea.scrollTo({ top: chatArea.scrollHeight, behavior: 'smooth' });
+  requestAnimationFrame(() => updateScrollFab());
+});
+
+// ─────────────────────────────────────────────
+// Code Block Copy Buttons
+// ─────────────────────────────────────────────
+function getCodeBlockText(pre) {
+  // AG renders code blocks with .code-line > .line-content elements.
+  // textContent concatenates without newlines; we must extract line-by-line.
+  const code = pre.querySelector('code') || pre;
+
+  // Strategy 1: AG's line-based rendering (.code-line .line-content)
+  const lineContents = code.querySelectorAll('.line-content');
+  if (lineContents.length > 0) {
+    return Array.from(lineContents).map(lc => lc.textContent).join('\n');
+  }
+
+  // Strategy 2: Use innerText (layout-aware, preserves visual line breaks)
+  // Clone to strip <style> tags and UI elements (copy buttons, etc.)
+  const clone = code.cloneNode(true);
+  clone.querySelectorAll('style, button, .mobile-copy-btn').forEach(el => el.remove());
+  return clone.innerText;
+}
+
+function addMobileCopyButtons() {
+  chatContent.querySelectorAll('pre').forEach(pre => {
+    // Skip if already has copy button
+    if (pre.querySelector('.mobile-copy-btn')) return;
+
+    // Single-line code blocks get different styling
+    const lines = pre.textContent.trim().split('\n');
+    if (lines.length <= 1) {
+      pre.classList.add('single-line-pre');
+      return;
+    }
+
+    // Multi-line: add copy button
+    pre.style.position = 'relative';
+    const btn = document.createElement('button');
+    btn.className = 'mobile-copy-btn';
+    btn.textContent = 'Copy';
+    btn.addEventListener('mousedown', e => e.preventDefault()); // Keep keyboard open
+    btn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      try {
+        const text = getCodeBlockText(pre);
+        await navigator.clipboard.writeText(text);
+        btn.textContent = 'Copied!';
+        btn.classList.add('copied');
+        setTimeout(() => {
+          btn.textContent = 'Copy';
+          btn.classList.remove('copied');
+        }, 2000);
+      } catch {
+        btn.textContent = 'Failed';
+        setTimeout(() => { btn.textContent = 'Copy'; }, 1500);
+      }
+    });
+    pre.appendChild(btn);
+  });
+}
+
+// ─────────────────────────────────────────────
+// Message Sending
+// ─────────────────────────────────────────────
+async function sendMessage() {
+  const text = messageInput.value.trim();
+  const hasImages = stagedImages.length > 0;
+  if ((!text && !hasImages) || isSending) return;
+
+  debugLog('sendMessage-entry', `isSending=${isSending} text="${text.substring(0, 80)}" images=${stagedImages.length}`);
+  isSending = true;
+
+  // Stop any active voice recording so onresult doesn't refill the input
+  if (stopMainMic) stopMainMic();
+
+  // Clear and disable input to prevent any re-trigger
+  messageInput.value = '';
+  messageInput.style.height = 'auto';
+  messageInput.disabled = true;
+  actionBtn.disabled = true;
+  messageInput.blur();
+  updateActionButton();
+
+  // Upload staged images first (injects into AG's editor via CDP drop)
+  if (hasImages) {
+    const uploadOk = await uploadStagedImages();
+    if (!uploadOk) {
+      debugLog('send', 'some image uploads failed');
+      // Don't clear images on failure — let user retry
+      isSending = false;
+      messageInput.disabled = false;
+      actionBtn.disabled = false;
+      return;
+    }
+    clearStagedImages();
+  }
+
+  // Prepend any queued artifact comments to the message
+  const commentBlock = drainQueuedComments();
+  const fullMessage = commentBlock ? commentBlock + '\n' + text : text;
+
+  try {
+    if (hasImages && !fullMessage) {
+      // Image-only: server waits for AG to process images, then clicks send
+      debugLog('sendMessage-images-only');
+      const res = await fetchAPI('/send-images', { method: 'POST' });
+      const result = await res.json();
+      debugLog('send', 'image-only result: ' + JSON.stringify(result));
+    } else if (fullMessage) {
+      // Text (possibly with images/macros): inject text and click send
+      const hasMacro = !!stagedMacro;
+      const res = await fetchAPI('/send', {
+        method: 'POST',
+        body: JSON.stringify({ message: fullMessage, hasImages, hasMacro }),
+      });
+      const result = await res.json();
+      debugLog('send', 'result: ' + JSON.stringify(result));
+      if (!result.ok) {
+        debugLog('send', 'failed: ' + result.reason);
+      }
+    }
+  } catch (e) {
+    debugLog('send', 'error: ' + e.message);
+  }
+
+  // Reset scroll-away flag so AG's scroll position syncs immediately on next render
+  userScrolledAway = false;
+
+  // Schedule snapshot reloads to pick up the sent message
+  setTimeout(loadSnapshot, 300);
+  setTimeout(loadSnapshot, 800);
+  setTimeout(loadSnapshot, 2000);
+
+  isSending = false;
+  messageInput.disabled = false;
+  actionBtn.disabled = false;
+  // Clear macro chip after send — AG's editor already has the macro applied
+  if (stagedMacro) {
+    stagedMacro = null;
+    renderMacroChip();
+  }
+  debugLog('sendMessage-exit');
+}
+
+
+
+// ─────────────────────────────────────────────
+// Stop Generation
+// ─────────────────────────────────────────────
+async function stopGeneration() {
+  try {
+    const res = await fetchAPI('/stop', { method: 'POST' });
+    const result = await res.json();
+
+    if (!result.ok) {
+      debugLog('stop', 'no active generation found');
+    }
+
+    // Refresh snapshot to show updated state
+    setTimeout(loadSnapshot, 300);
+    setTimeout(loadSnapshot, 1000);
+  } catch (e) {
+    debugLog('stop', 'error: ' + e.message);
+  }
+}
+
+// ─────────────────────────────────────────────
+// Action Button (Send / Stop toggle)
+// ─────────────────────────────────────────────
+function updateActionButton() {
+  const hasText = messageInput.value.trim().length > 0;
+  const hasImages = stagedImages.length > 0;
+
+  if (agentRunning && !hasText && !hasImages) {
+    // Agent is running and input is empty → show Stop
+    actionBtn.setAttribute('data-action', 'stop');
+    actionBtn.setAttribute('aria-label', 'Stop generation');
+    actionIcon.textContent = 'stop';
+    actionBtn.classList.remove('disabled');
+  } else {
+    // User is typing or agent is idle → show Send
+    actionBtn.setAttribute('data-action', 'send');
+    actionBtn.setAttribute('aria-label', 'Send message');
+    actionIcon.textContent = 'arrow_upward';
+
+    if (hasText || hasImages) {
+      actionBtn.classList.remove('disabled');
+    } else {
+      actionBtn.classList.add('disabled');
+    }
+  }
+
+  // Quick actions visibility is managed at server update points only,
+  // not here, to prevent user actions (send, type) from causing flicker.
+}
+
+actionBtn.addEventListener('click', () => {
+  const action = actionBtn.getAttribute('data-action');
+  if (action === 'stop') {
+    stopGeneration();
+  } else if (action === 'send') {
+    sendMessage();
+  }
+});
+
+// ─────────────────────────────────────────────
+// Quick Action Chips
+// ─────────────────────────────────────────────
+document.querySelectorAll('.quick-action-chip').forEach(chip => {
+  chip.addEventListener('click', () => {
+    const msg = chip.dataset.message;
+    if (msg) {
+      track('quick_action_used', { label: msg });
+      messageInput.value = msg;
+      sendMessage();
+    }
+  });
+});
+
+// ─────────────────────────────────────────────
+// Input Handling
+// ─────────────────────────────────────────────
+
+// Auto-resize textarea
+messageInput.addEventListener('input', () => {
+  messageInput.style.height = 'auto';
+  requestAnimationFrame(() => {
+    messageInput.style.height = Math.min(messageInput.scrollHeight, 120) + 'px';
+  });
+  updateActionButton();
+});
+
+// Desktop: Enter to send (Shift+Enter for newline)
+// Mobile: Enter inserts newline (user taps send button)
+let lastEnterSend = 0;
+messageInput.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && !e.shiftKey && !isMobile) {
+    e.preventDefault();
+    const now = Date.now();
+    if (now - lastEnterSend < 500) return;
+    lastEnterSend = now;
+    if (messageInput.value.trim()) {
+      sendMessage();
+    }
+  }
+});
+
+// ─────────────────────────────────────────────
+// Voice Input (Web Speech API)
+// ─────────────────────────────────────────────
+const micBtn = document.getElementById('mic-btn');
+const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+
+// Shared factory: wires SpeechRecognition on any textarea + mic button pair.
+// Returns a stopRecording() function so callers (e.g. sendMessage) can kill
+// the mic before clearing input.
+//
+// Key design decisions:
+// - continuous:true — avoids per-utterance browser ding on mobile
+// - Idempotent onresult — rebuilds text from ALL results every call instead
+//   of accumulating. Mobile browsers re-fire events for already-finalized
+//   results (resultIndex doesn't advance), which breaks append-based logic.
+// - Null out onresult/onend in stopRecording — recognition.stop() is async;
+//   the browser fires one last onresult AFTER the caller clears the input,
+//   refilling it. Nulling handlers prevents this.
+function createVoiceInput(inputEl, btnEl) {
+  if (!SpeechRecognition) {
+    btnEl.classList.add('unsupported');
+    return null;
+  }
+
+  let recognition = null;
+  let isRecording = false;
+
+  // baselineText: text in input before recording started, plus finals from
+  // any previous recognition sessions within this recording (after restarts).
+  // sessionFinals: finals from the current recognition session, rebuilt from
+  // ALL results on every onresult (idempotent — immune to resultIndex bugs
+  // on mobile where the browser re-fires events for already-finalized results).
+  let baselineText = '';
+  let sessionFinals = '';
+
+  function wireHandlers() {
+    recognition.onresult = (event) => {
+      // Use ONLY the last result's transcript. Mobile browsers produce
+      // cumulative results: each final contains the full text from session
+      // start, not just the new words. Concatenating all results duplicates
+      // everything. The last result always has the complete current text.
+      const latest = event.results[event.results.length - 1];
+      const text = latest[0].transcript.trim();
+
+      if (latest.isFinal) {
+        sessionFinals = text;
+      }
+
+      inputEl.value = baselineText + (text ? (baselineText ? ' ' : '') + text : '');
+
+      // Trigger auto-resize
+      inputEl.style.height = 'auto';
+      requestAnimationFrame(() => {
+        inputEl.style.height = Math.min(inputEl.scrollHeight, 120) + 'px';
+      });
+      updateActionButton();
+    };
+
+    recognition.onerror = (event) => {
+      debugLog('voice', 'error: ' + event.error);
+      stopRecording();
+    };
+
+    recognition.onend = () => {
+      // Auto-restart if still in recording mode (browser may stop after
+      // silence). Merge session finals into baseline so the restarted
+      // session builds on top of them.
+      if (isRecording) {
+        if (sessionFinals) {
+          baselineText += (baselineText ? ' ' : '') + sessionFinals;
+          sessionFinals = '';
+        }
+        try { recognition.start(); } catch {}
+      }
+    };
+  }
+
+  function startRecording() {
+    recognition = new SpeechRecognition();
+    recognition.continuous = true;
+    recognition.interimResults = true;
+    recognition.lang = navigator.language || 'en-US';
+    wireHandlers();
+
+    baselineText = inputEl.value;
+    sessionFinals = '';
+    isRecording = true;
+    track('voice_input_used');
+    btnEl.classList.add('recording');
+    btnEl.setAttribute('aria-label', 'Stop recording');
+
+    try {
+      recognition.start();
+    } catch (err) {
+      debugLog('voice', 'start error: ' + err);
+      stopRecording();
+    }
+  }
+
+  function stopRecording() {
+    isRecording = false;
+    btnEl.classList.remove('recording');
+    btnEl.setAttribute('aria-label', 'Voice input');
+    if (recognition) {
+      // Null out handlers BEFORE stopping — recognition.stop() is async
+      // and fires a final onresult that would refill the input after
+      // sendMessage() clears it.
+      recognition.onresult = null;
+      recognition.onend = null;
+      recognition.onerror = null;
+      try { recognition.stop(); } catch {}
+      recognition = null;
+    }
+  }
+
+  btnEl.addEventListener('click', () => {
+    if (isRecording) {
+      stopRecording();
+    } else {
+      startRecording();
+    }
+  });
+
+  return stopRecording;
+}
+
+// Wire main input bar mic button
+const stopMainMic = createVoiceInput(messageInput, micBtn);
+
+// ─────────────────────────────────────────────
+// Model Chip (existing conversation input bar)
+// ─────────────────────────────────────────────
+function updateModelChip(modelName) {
+  const chipText = document.querySelector('#model-chip .model-chip-text');
+  if (chipText && modelName) {
+    chipText.textContent = modelName;
+  }
+}
+
+// ─────────────────────────────────────────────
+// Photo Upload (staged thumbnails, upload on send)
+// ─────────────────────────────────────────────
+const attachBtn = document.getElementById('attach-btn');
+const photoInput = document.getElementById('photo-input');
+const imagePreviewStrip = document.getElementById('image-preview-strip');
+const MAX_STAGED_IMAGES = 3;
+let stagedImages = []; // { file: File, objectUrl: string }
+
+// ── Macro Chip State (slash commands) ──
+let macroChipStrip = null;
+let stagedMacro = null; // { name: string } — only one macro at a time
+
+function getMacroChipStrip() {
+  if (!macroChipStrip) {
+    macroChipStrip = document.getElementById('macro-chip-strip');
+    if (!macroChipStrip) {
+      const wrapper = document.querySelector('.input-wrapper');
+      if (wrapper) {
+        macroChipStrip = document.createElement('div');
+        macroChipStrip.id = 'macro-chip-strip';
+        macroChipStrip.className = 'macro-chip-strip hidden';
+        const txt = document.getElementById('message-input');
+        wrapper.insertBefore(macroChipStrip, txt);
+        console.debug('[MacroChip] Strip element auto-created dynamically');
+      }
+    }
+  }
+  return macroChipStrip;
+}
+
+function renderMacroChip() {
+  const strip = getMacroChipStrip();
+  if (!strip) {
+    console.debug('[MacroChip] No macro-chip-strip element found');
+    return;
+  }
+  strip.innerHTML = '';
+  if (!stagedMacro) {
+    strip.classList.add('hidden');
+    return;
+  }
+  strip.classList.remove('hidden');
+
+  const chip = document.createElement('div');
+  chip.className = 'macro-chip';
+  // Use the captured icon SVG from the typeahead item, or fall back to a lightning bolt
+  const iconHtml = stagedMacro.iconHtml
+    || '<span class="material-symbols-rounded">bolt</span>';
+  chip.innerHTML = `
+    <span class="macro-chip-icon">${iconHtml}</span>
+    <span class="macro-chip-name">/${stagedMacro.name}</span>
+    <button class="macro-remove" aria-label="Remove macro">×</button>
+  `;
+
+  chip.querySelector('.macro-remove').addEventListener('click', async () => {
+    stagedMacro = null;
+    renderMacroChip();
+    // Clear AG's editor since the macro was the only content there
+    try {
+      const res = await fetchAPI('/clear-editor', { method: 'POST' });
+      const result = await res.json();
+      console.debug('[MacroChip] Clear result:', JSON.stringify(result));
+    } catch (err) {
+      console.debug('[MacroChip] Clear error:', err);
+    }
+  });
+
+  strip.appendChild(chip);
+}
+
+function renderImagePreviewsInto(strip, btn) {
+  strip.innerHTML = '';
+  if (stagedImages.length === 0) {
+    strip.classList.add('hidden');
+    if (btn) btn.classList.remove('at-limit');
+    return;
+  }
+  strip.classList.remove('hidden');
+
+  stagedImages.forEach((item, idx) => {
+    const wrapper = document.createElement('div');
+    wrapper.className = 'image-preview-item';
+
+    const img = document.createElement('img');
+    img.src = item.objectUrl;
+    img.alt = item.file.name;
+    wrapper.appendChild(img);
+
+    const removeBtn = document.createElement('button');
+    removeBtn.className = 'remove-btn';
+    removeBtn.textContent = '×';
+    removeBtn.setAttribute('aria-label', 'Remove image');
+    removeBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      URL.revokeObjectURL(stagedImages[idx].objectUrl);
+      stagedImages.splice(idx, 1);
+      renderImagePreviewsInto(strip, btn);
+      updateActionButton();
+    });
+    wrapper.appendChild(removeBtn);
+
+    strip.appendChild(wrapper);
+  });
+
+  // Disable attach when at limit
+  if (btn) {
+    if (stagedImages.length >= MAX_STAGED_IMAGES) {
+      btn.classList.add('at-limit');
+    } else {
+      btn.classList.remove('at-limit');
+    }
+  }
+}
+
+// Shorthand for the main input bar
+function renderImagePreviews() {
+  renderImagePreviewsInto(imagePreviewStrip, attachBtn);
+}
+
+// ── Attach Context Menu (+) ──
+// The + button opens a small menu; "Media" triggers the file picker.
+function createAttachMenu(parentEl, fileInput) {
+  const menu = document.createElement('div');
+  menu.className = 'attach-menu hidden';
+  menu.innerHTML = `
+    <button type="button" class="attach-menu-item" data-action="media">
+      <span class="material-symbols-rounded">image</span>
+      <span>Media</span>
+    </button>
+    <button type="button" class="attach-menu-item" data-action="actions">
+      <span class="material-symbols-rounded">bolt</span>
+      <span>Actions</span>
+    </button>
+  `;
+  parentEl.appendChild(menu);
+
+  menu.querySelector('[data-action="media"]').addEventListener('click', (e) => {
+    e.stopPropagation();
+    menu.classList.add('hidden');
+    if (stagedImages.length >= MAX_STAGED_IMAGES) return;
+    fileInput.click();
+  });
+
+  menu.querySelector('[data-action="actions"]').addEventListener('click', async (e) => {
+    e.stopPropagation();
+    menu.classList.add('hidden');
+    console.debug('[Actions] Tapped — typing / into AG');
+    // Type "/" into AG's input to trigger slash command dropdown (without sending)
+    try {
+      const res = await fetchAPI('/type-slash', { method: 'POST' });
+      const result = await res.json();
+      console.debug('[Actions] Result:', JSON.stringify(result));
+    } catch (err) {
+      console.debug('[Actions] Error typing / into AG:', err);
+    }
+  });
+
+  return menu;
+}
+
+// Create attach menu for main input bar
+const attachMenu = createAttachMenu(
+  document.querySelector('.input-left-actions'),
+  photoInput
+);
+
+attachBtn.addEventListener('click', (e) => {
+  e.stopPropagation();
+  attachMenu.classList.toggle('hidden');
+});
+
+// Close all attach menus when clicking elsewhere
+document.addEventListener('click', () => {
+  document.querySelectorAll('.attach-menu').forEach(m => m.classList.add('hidden'));
+});
+
+photoInput.addEventListener('change', () => {
+  const files = Array.from(photoInput.files);
+  if (!files.length) return;
+
+  const remaining = MAX_STAGED_IMAGES - stagedImages.length;
+  const toAdd = files.slice(0, remaining);
+
+  for (const file of toAdd) {
+    stagedImages.push({ file, objectUrl: URL.createObjectURL(file) });
+  }
+  renderImagePreviews();
+  updateActionButton();
+
+  // Reset so the same files can be re-selected
+  photoInput.value = '';
+});
+
+// Upload all staged images to AG via /upload endpoint.
+// Returns true if all succeeded (or no images staged), false if any failed.
+async function uploadStagedImages() {
+  if (stagedImages.length === 0) return true;
+
+  // Mark thumbnails as uploading
+  imagePreviewStrip.querySelectorAll('.image-preview-item').forEach(el => {
+    el.classList.add('uploading');
+  });
+
+  let allOk = true;
+  const items = imagePreviewStrip.querySelectorAll('.image-preview-item');
+
+  for (let i = 0; i < stagedImages.length; i++) {
+    try {
+      const formData = new FormData();
+      formData.append('image', stagedImages[i].file);
+
+      const res = await fetch('/upload', {
+        method: 'POST',
+        body: formData,
+        headers: { 'ngrok-skip-browser-warning': '1' },
+      });
+
+      const result = await res.json();
+      debugLog('upload', 'result: ' + JSON.stringify(result));
+
+      if (items[i]) items[i].classList.remove('uploading');
+
+      if (!res.ok || !result.ok) {
+        debugLog('upload', 'error: ' + (result.error || 'Unknown'));
+        if (items[i]) items[i].classList.add('upload-error');
+        allOk = false;
+      }
+    } catch (e) {
+      debugLog('upload', 'network error: ' + e.message);
+      if (items[i]) {
+        items[i].classList.remove('uploading');
+        items[i].classList.add('upload-error');
+      }
+      allOk = false;
+    }
+  }
+
+  return allOk;
+}
+
+// Clear staged images (called after successful send)
+function clearStagedImages() {
+  stagedImages.forEach(item => URL.revokeObjectURL(item.objectUrl));
+  stagedImages = [];
+  renderImagePreviews();
+}
+
+// ─────────────────────────────────────────────
+// Left Sidebar (AG's captured chat list)
+// ─────────────────────────────────────────────
+function openLeftSidebar() {
+  leftSidebar.classList.add('open');
+  leftSidebar.inert = false;
+  leftSidebarOverlay.classList.add('visible');
+  // If sidebar content is empty (AG's sidebar is collapsed), expand it
+  if (!leftSidebarContent.innerHTML.trim()) {
+    fetchAPI('/expand-left-sidebar', { method: 'POST' }).catch(() => {});
+  }
+}
+
+function closeLeftSidebar() {
+  leftSidebar.classList.remove('open');
+  leftSidebar.inert = true;
+  leftSidebarOverlay.classList.remove('visible');
+}
+
+sidebarToggle.addEventListener('click', () => {
+  if (leftSidebar.classList.contains('open')) {
+    closeLeftSidebar();
+  } else {
+    openLeftSidebar();
+  }
+});
+leftSidebarOverlay.addEventListener('click', closeLeftSidebar);
+
+// Dropdown backdrop dismiss — also close the dropdown in AG
+dropdownBackdrop.addEventListener('click', () => {
+  overlayDismissedAt = Date.now();
+  dropdownOverlay.classList.add('hidden');
+  // Dismiss AG's native portal by pressing Escape
+  fetchAPI('/dismiss-portal', { method: 'POST' }).catch(() => {});
+});
+
+// Permission/ask_question backdrop: click Skip when dismissing
+permissionBackdrop.addEventListener('click', async () => {
+  // Find the Skip button by its click label (native rendering uses data-ag-click-label)
+  const skipBtn = permissionContent.querySelector('[data-ag-click-label="Skip"]');
+  if (skipBtn) skipBtn.click();
+  else permissionOverlay.classList.add('hidden');
+});
+
+// Settings back button — dismiss settings
+settingsBack.addEventListener('click', () => {
+  settingsOverlay.classList.add('hidden');
+  fetchAPI('/dismiss-settings', { method: 'POST' }).catch(() => {});
+});
+
+// Refresh button — hard reload for PWA (no pull-to-refresh on home screen)
+refreshBtn.addEventListener('click', () => {
+  track('hard_refresh');
+  location.reload();
+});
+
+// Restart Antigravity — confirmation modal + API call
+function showRestartConfirm() {
+  restartGo.disabled = false;
+  restartGo.textContent = 'Restart';
+  restartConfirm.classList.remove('hidden');
+}
+
+restartCancel.addEventListener('click', () => {
+  restartConfirm.classList.add('hidden');
+});
+
+// Dismiss on backdrop tap
+restartConfirm.querySelector('.restart-confirm-backdrop').addEventListener('click', () => {
+  restartConfirm.classList.add('hidden');
+});
+
+restartGo.addEventListener('click', async () => {
+  restartGo.disabled = true;
+  restartGo.textContent = 'Restarting...';
+  try {
+    const res = await fetchAPI('/restart-antigravity', { method: 'POST' });
+    const data = await res.json();
+    if (data.ok) {
+      // Success — AG will die, CDP disconnects, auto-reconnect kicks in
+      // Dismiss modal after a moment so the user sees the state change
+      setTimeout(() => {
+        restartConfirm.classList.add('hidden');
+      }, 2000);
+    } else {
+      restartGo.textContent = 'Failed — try again';
+      restartGo.disabled = false;
+    }
+  } catch {
+    restartGo.textContent = 'Failed — try again';
+    restartGo.disabled = false;
+  }
+});
+
+// Scheduled Tasks back button — detail view goes back to list, list view navigates to conversation
+scheduledTasksBack.addEventListener('click', async () => {
+  try {
+    const resp = await fetchAPI('/dismiss-scheduled-tasks', { method: 'POST' });
+    const data = await resp.json();
+    if (data.method === 'detail-back') {
+      // Went from detail view back to list — keep overlay open, clear cached HTML to force re-render
+      scheduledTasksContent._lastHtml = '';
+      return;
+    }
+  } catch (e) {
+    // Fall through to dismiss
+  }
+  // Navigated away from scheduled tasks entirely — hide overlay
+  scheduledTasksOverlay.classList.add('hidden');
+  scheduledTasksContent._lastHtml = '';
+});
+
+// Conversation History back button — navigate AG back (browser history back)
+conversationHistoryBack.addEventListener('click', async () => {
+  try {
+    // Send AG a history-back navigation via CDP
+    await fetchAPI('/history-back', { method: 'POST' });
+  } catch (e) {
+    // ignore
+  }
+  // Optimistically hide overlay; the next snapshot cycle will confirm
+  conversationHistoryOverlay.classList.add('hidden');
+  conversationHistoryContent._lastHtml = '';
+});
+
+// ─────────────────────────────────────────────
+// Right Sidebar (on-demand fetch from AG)
+// ─────────────────────────────────────────────
+let lastSidebarSignature = null;
+let sidebarFetchInFlight = false;
+
+// Image proxy cache: src → dataUrl (survives sidebar open/close, clears on page reload)
+const imageProxyCache = new Map();
+
+// Scan sidebar for images with unresolvable src and proxy them via the server
+function proxySidebarImages(container) {
+  const imgs = container.querySelectorAll('img');
+  for (const img of imgs) {
+    const src = img.getAttribute('src') || '';
+    if (!src || src.startsWith('data:') || src.startsWith('http')) continue;
+
+    // Only proxy unresolvable sources
+    if (src.startsWith('blob:') || src.startsWith('file:') ||
+        src.startsWith('vscode-file:') || (src.startsWith('/') && !src.startsWith('/symbols-icons'))) {
+
+      // Check cache first
+      const cached = imageProxyCache.get(src);
+      if (cached) {
+        img.src = cached;
+        img.style.display = '';
+        continue;
+      }
+
+      // Mark as loading
+      img.dataset.originalSrc = src;
+
+      // Fetch async — don't block sidebar render
+      fetchAPI(`/proxy-image?src=${encodeURIComponent(src)}`)
+        .then(r => r.json())
+        .then(({ dataUrl }) => {
+          if (dataUrl) {
+            imageProxyCache.set(src, dataUrl);
+            img.src = dataUrl;
+            img.style.display = '';
+          } else {
+            img.style.display = 'none';
+          }
+        })
+        .catch(() => {
+          img.style.display = 'none';
+        });
+    }
+  }
+}
+
+async function fetchRightSidebar() {
+  // Skip if user has active text selection (for commenting)
+  if (hasActiveSelectionInRightSidebar()) return;
+  if (sidebarFetchInFlight) return;
+  sidebarFetchInFlight = true;
+  try {
+    const res = await fetchAPI('/right-sidebar');
+    if (!res.ok) return;
+    const data = await res.json();
+    if (data.html) {
+      renderSidebar(rightSidebarContent, data.html);
+      addClickProxyHandlers(rightSidebarContent);
+      proxySidebarImages(rightSidebarContent);
+    } else if (data.wasOpened) {
+      // Server opened the sidebar in AG — re-fetch after it renders
+      setTimeout(fetchRightSidebar, 600);
+    } else {
+      // Sidebar truly unavailable — show empty state
+      rightSidebarContent.innerHTML = `
+        <div style="display:flex;align-items:center;justify-content:center;height:100%;padding:2rem;text-align:center;opacity:0.5;">
+          <p>Sidebar not available.<br>Open it in Antigravity first.</p>
+        </div>
+      `;
+    }
+  } catch (e) {
+    debugLog('right-sidebar', 'fetch error: ' + e.message);
+  } finally {
+    sidebarFetchInFlight = false;
+  }
+}
+
+function updateReviewToggleIcon() {
+  const icon = reviewToggle.querySelector('.material-symbols-rounded');
+  if (!icon) return;
+  icon.textContent = rightSidebar.classList.contains('open') ? 'right_panel_close' : 'right_panel_open';
+}
+
+function openRightSidebar() {
+  rightSidebar.classList.add('open');
+  rightSidebar.inert = false;
+  rightSidebarOverlay.classList.add('visible');
+  updateReviewToggleIcon();
+  // Fetch sidebar content on-demand
+  fetchRightSidebar();
+}
+
+function closeRightSidebar() {
+  rightSidebar.classList.remove('open');
+  rightSidebar.inert = true;
+  rightSidebarOverlay.classList.remove('visible');
+  updateReviewToggleIcon();
+  // Sync: close AG's sidebar too so re-clicks produce a detectable tab change
+  fetchAPI('/close-sidebar', { method: 'POST' }).catch(() => {});
+}
+
+function toggleRightSidebar() {
+  // Proxy to AG — snapshot mirroring handles AG2R's UI
+  fetchAPI('/toggle-sidebar', { method: 'POST' })
+    .then(() => setTimeout(loadSnapshot, 300))
+    .catch(() => {});
+}
+
+reviewToggle.addEventListener('click', toggleRightSidebar);
+rightSidebarOverlay.addEventListener('click', closeRightSidebar);
+
+// ─────────────────────────────────────────────
+// Sidebar Content Rendering
+// ─────────────────────────────────────────────
+// ─────────────────────────────────────────────
+// New Session Page — functional input overlay
+// ─────────────────────────────────────────────
+function renderNewSessionPage(container, data) {
+  // Wrap captured HTML in a zone div so poll updates don't destroy
+  // the input-wrapper (which lives inside it, replacing AG's editor).
+  const capturedHtml = container.innerHTML;
+  container.innerHTML = '';
+
+  const capturedZone = document.createElement('div');
+  capturedZone.className = 'ag2r-ns-captured';
+  capturedZone.innerHTML = capturedHtml;
+  container.appendChild(capturedZone);
+
+  processNewSessionCapture(capturedZone);
+  addClickProxyHandlers(capturedZone);
+
+  // Move the existing input-wrapper (already wired with mic, send, attach)
+  // from the footer into the captured card, replacing AG's dead editor clone.
+  // Same DOM elements, same handlers — no re-wiring. Mic stays stable.
+  const wrapper = inputBar.querySelector('.input-wrapper');
+  const editor = capturedZone.querySelector('[contenteditable]')
+    || capturedZone.querySelector('[data-lexical-editor]')
+    || capturedZone.querySelector('[role="textbox"]');
+  if (wrapper && editor) {
+    // Hide the model chip — the captured zone already shows the model selector
+    const chip = wrapper.querySelector('#model-chip');
+    if (chip) chip.style.display = 'none';
+    editor.replaceWith(wrapper);
+  } else if (wrapper) {
+    // Fallback: append if editor not found
+    const chip = wrapper.querySelector('#model-chip');
+    if (chip) chip.style.display = 'none';
+    capturedZone.appendChild(wrapper);
+  }
+}
+
+// ── Helper: process captured new session HTML for mobile display ──
+// Hides AG's non-functional cloned elements from the captured new session zone.
+// The real input is the moved input-wrapper from the footer.
+function processNewSessionCapture(zone) {
+  hideAgDuplicateControls(zone);
+}
+
+
+/**
+ * Hide AG's send and attach buttons — they're non-functional DOM clones
+ * that would confuse users if visible alongside our real controls.
+ */
+function hideAgDuplicateControls(zone) {
+  zone.querySelectorAll('[data-tooltip-id*="send-button"]').forEach(el => {
+    el.style.display = 'none';
+  });
+  zone.querySelectorAll('[aria-label="Add context"], [aria-label="Add Content"]').forEach(el => {
+    el.style.display = 'none';
+  });
+}
+
+// ─────────────────────────────────────────────
+// Sidebar Rendering
+// ─────────────────────────────────────────────
+function renderSidebar(container, html) {
+  if (html) {
+    // Fix invalid nested <button> elements: AG nests close-buttons inside tab buttons.
+    // Browsers reject nested <button> in innerHTML, breaking the DOM structure.
+    // Convert inner close buttons (hidden group-hover:flex) to <span> to preserve nesting.
+    html = html.replace(
+      /<button(\s+(?:type="button"\s+)?class="hidden group-hover:flex[^"]*"[^>]*)>([\s\S]*?)<\/button>/g,
+      '<span$1>$2</span>'
+    );
+    container.innerHTML = html;
+    // Strip all h-full classes — they create percentage-height chains that
+    // collapse to zero. Let content size intrinsically so overflow scrolls.
+    container.querySelectorAll('.h-full').forEach(el => {
+      el.classList.remove('h-full');
+    });
+
+    // Fix tab bar: ensure tab buttons show text and bar scrolls horizontally
+    container.querySelectorAll('button[data-tab-id]').forEach(btn => {
+      btn.classList.remove('overflow-hidden');
+    });
+    // The scrollable tab bar container has overflow-x-auto but may lack nowrap
+    const scrollableBar = container.querySelector('.overflow-x-auto');
+    if (scrollableBar) {
+      scrollableBar.style.flexWrap = 'nowrap';
+    }
+
+    // ── Sidebar cleanup: remove desktop-only structural elements ──
+    // The top header bar (sidebar toggle + back/forward nav) — AG2R has its own
+    const topBar = container.querySelector('[style*="app-region: drag"]');
+    if (topBar) topBar.remove();
+
+    // All three base menu items stay visible: New Conversation, Conversation History, Scheduled Tasks.
+
+    // The separator line between actions and project list
+    // It's a div with mt-3 mx-2 h-px (transparent background divider)
+    container.querySelectorAll('.mt-3.mx-2.h-px').forEach(el => el.remove());
+
+    // ── Force hover-only action buttons visible on mobile ──
+    // AG uses Tailwind hover patterns to show action buttons only on hover.
+    // Mobile has no hover, so force them visible.
+    container.querySelectorAll('*').forEach(el => {
+      const cls = el.className;
+      if (typeof cls !== 'string') return;
+
+      // Project-level: "hidden group-hover/section:flex" → force flex
+      if (cls.includes('hidden') && cls.includes('group-hover/section:flex')) {
+        el.classList.remove('hidden');
+        el.style.display = 'flex';
+      }
+
+      // Per-session: "invisible group-hover:visible" → force visible
+      if (cls.includes('invisible') && cls.includes('group-hover:visible')) {
+        el.classList.remove('invisible');
+        el.style.visibility = 'visible';
+      }
+    });
+
+    // ── Inject native AG2R actions after Settings ──
+    // Only for the left sidebar — inject our own buttons after AG's Settings button
+    if (container === leftSidebarContent) {
+      const settingsEl = container.querySelector('[data-ag-click-label="Settings"]');
+      const target = settingsEl || container; // fallback: append to bottom
+      let injectHtml = `
+        <button class="ag2r-restart-btn" id="ag2r-restart-trigger">
+          <span class="material-symbols-rounded">restart_alt</span>
+          Restart Antigravity
+        </button>
+      `;
+      if (featureFlags.showCoffeeLink) {
+        injectHtml += `
+          <a class="ag2r-coffee-sidebar-btn" href="https://buymeacoffee.com/omercanyy" target="_blank">
+            <span class="material-symbols-rounded">local_cafe</span>
+            Buy me a coffee
+          </a>
+        `;
+      }
+      if (settingsEl) {
+        settingsEl.insertAdjacentHTML('afterend', injectHtml);
+      } else {
+        container.insertAdjacentHTML('beforeend', injectHtml);
+      }
+      // Wire the injected button
+      const restartTrigger = container.querySelector('#ag2r-restart-trigger');
+      if (restartTrigger) {
+        restartTrigger.addEventListener('click', () => {
+          closeLeftSidebar();
+          showRestartConfirm();
+        });
+      }
+      const coffeeLink = container.querySelector('.ag2r-coffee-sidebar-btn');
+      if (coffeeLink) {
+        coffeeLink.addEventListener('click', () => track('coffee_link_clicked'));
+      }
+    }
+  }
+}
+
+// ─────────────────────────────────────────────
+// Click Proxying — generic for any container
+// ─────────────────────────────────────────────
+function addClickProxyHandlers(container) {
+  let wiredCount = 0;
+  container.querySelectorAll('[data-ag-click-id]').forEach(el => {
+    if (el.dataset.agClickWired) return;
+    el.dataset.agClickWired = '1';
+    wiredCount++;
+
+    // Ensure non-interactive elements (DIVs) are tappable on iOS Safari.
+    // iOS only fires click events on elements considered "clickable" —
+    // either semantic (button, a, input) or elements with cursor:pointer.
+    const tag = el.tagName;
+    if (tag !== 'BUTTON' && tag !== 'A' && tag !== 'INPUT' && tag !== 'SELECT' && tag !== 'TEXTAREA') {
+      el.style.cursor = 'pointer';
+    }
+
+    // Skip proxy wiring for TEXTAREA — they need native focus/input behavior.
+    // Permission submit handler reads their value separately.
+    if (tag === 'TEXTAREA') return;
+
+    // Prevent keyboard dismissal: stop mousedown from stealing focus.
+    // But allow textareas to receive focus (e.g. permission write-in) —
+    // on mobile, the label can be the target instead of the textarea.
+    el.addEventListener('mousedown', e => {
+      if (e.target.closest('textarea')) return;
+      e.preventDefault();
+    });
+
+    el.addEventListener('click', async (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+
+      const clickId = el.dataset.agClickId; // e.g. "chat:5", "right:2"
+      const label = el.dataset.agClickLabel || '';
+
+      debugLog('click-proxy', 'id=' + clickId + ' label="' + label + '"' + ' tag=' + el.tagName);
+      debugLog('click-proxy', `id=${clickId} label="${label}" tag=${el.tagName}`);
+
+      // Intercept "Edit task title" pencil icon — single-click name editing
+      // Proxy the click (AG enters inline edit mode), then auto-open text input modal
+      if (clickId.startsWith('sched:') && el.getAttribute('aria-label') === 'Edit task title') {
+        // Get current name from nearby truncated span
+        const nameContainer = el.closest('[class*="flex"]');
+        const currentName = nameContainer?.querySelector('.truncate')?.textContent?.trim() || '';
+
+        // Proxy click to AG (enters inline edit mode)
+        fetchAPI('/click', {
+          method: 'POST',
+          body: JSON.stringify({ clickId, label }),
+        });
+
+        // Wait for burst re-capture to render the new input, then auto-open text input
+        const tryAutoOpen = () => {
+          // After edit mode, AG replaces the name span with an input — find it
+          const nameInput = scheduledTasksContent.querySelector(
+            'input:not([placeholder*="earch"]):not([type="hidden"]):not([role="switch"])'
+          );
+          if (nameInput && nameInput.dataset.agClickId) {
+            showTextInput('Task name', '', false, nameInput.getAttribute('data-ag-value') || currentName, nameInput.dataset.agClickId);
+            return true;
+          }
+          return false;
+        };
+        setTimeout(() => { if (!tryAutoOpen()) setTimeout(tryAutoOpen, 600); }, 600);
+        return;
+      }
+
+      // Intercept scheddlg: and sched: clicks on INPUT/TEXTAREA — show local text input modal
+      if (clickId.startsWith('scheddlg:') || clickId.startsWith('sched:')) {
+        const origTag = el.tagName;
+        const origPlaceholder = el.getAttribute('placeholder') || '';
+        // Check if this element is an input/textarea (in the captured DOM)
+        if (origTag === 'INPUT' || origTag === 'TEXTAREA') {
+          const currentValue = el.getAttribute('data-ag-value') || '';
+          showTextInput(
+            origPlaceholder || (origTag === 'TEXTAREA' ? 'Enter text' : 'Enter value'),
+            origPlaceholder,
+            origTag === 'TEXTAREA',
+            currentValue,
+            clickId
+          );
+          return; // Don't proxy the click
+        }
+      }
+
+      // Intercept Copy button — get markdown source from AG and copy to phone clipboard
+      if (el.getAttribute('aria-label') === 'Copy') {
+        try {
+          const res = await fetchAPI('/copy-response', {
+            method: 'POST',
+            body: JSON.stringify({ clickId }),
+          });
+          const result = await res.json();
+          if (result.ok && result.text) {
+            await navigator.clipboard.writeText(result.text);
+            // Visual feedback — green checkmark
+            const origHTML = el.innerHTML;
+            el.innerHTML = '<span style="font-size:12px;color:#4ade80">✓</span>';
+            setTimeout(() => { el.innerHTML = origHTML; }, 1500);
+          }
+        } catch (err) {
+          debugLog('copy', 'error: ' + err.message);
+        }
+        return;
+      }
+
+      // Intercept external URL links — open on client device, don't proxy to AG
+      if (el.tagName === 'A') {
+        const href = el.getAttribute('href') || '';
+        if (/^https?:\/\//i.test(href)) {
+          window.open(href, '_blank', 'noopener');
+          return;
+        }
+      }
+
+      el.classList.add('ag-clicking');
+      let result = null;
+      try {
+        const res = await fetchAPI('/click', {
+          method: 'POST',
+          body: JSON.stringify({ clickId, label }),
+        });
+        result = await res.json();
+        if (clickId.startsWith('dropdown:')) {
+          console.debug('[ClickProxy] dropdown result:', JSON.stringify(result));
+        }
+
+      } catch (err) {
+        debugLog('click-proxy', 'error: ' + err.message);
+      }
+      el.classList.remove('ag-clicking');
+
+      // Close sidebar only for conversation row clicks (navigates away).
+      // Conversation rows have min-h-[32px] in their class; project headers,
+      // "See all/less", and "Settings" do not.
+      // Also close for "Scheduled Tasks" and "Conversation History" since they navigate away.
+      if (clickId.startsWith('left:')) {
+        const elClass = (el.className || '').toString();
+        const isConversationRow = elClass.includes('min-h-[32px]');
+        const isScheduledTasks = label === 'Scheduled Tasks';
+        const isConversationHistory = label === 'Conversation History';
+        if (isConversationRow || isScheduledTasks || isConversationHistory) {
+          closeLeftSidebar();
+          // Reset subagent view when navigating to a different conversation
+          if (isConversationRow) {
+            isInSubagentView = false;
+
+          }
+        }
+      }
+
+      // Close dropdown overlay after any dropdown/dialog/scheduled-tasks-portal action
+      if (clickId.startsWith('dropdown:') || clickId.startsWith('dialog:') || (clickId.startsWith('scheddlg:') && parseInt(clickId.split(':')[1], 10) >= 100)) {
+        // Only suppress future overlay renders if the click actually succeeded.
+        // If the click failed (e.g. no_root_for_dialog), don't start the 2s suppression
+        // window — the user needs to retry immediately without waiting 2 seconds.
+        if (result?.ok) {
+          overlayDismissedAt = Date.now();
+        }
+        dropdownOverlay.classList.add('hidden');
+
+        // Detect slash command selection from the overlay
+        if (label) {
+          console.debug('[MacroDetect] clickId=' + clickId + ' label="' + label + '"');
+          // Slash command labels from AG are like "grill-meInterview me to align..."
+          // The command name is lowercase+hyphens, description starts with uppercase
+          const cmdMatch = label.match(/^([a-z][a-z0-9-]*)/);
+          if (cmdMatch) {
+            const cmdName = cmdMatch[1];
+            const knownCommands = ['btw','goal','schedule','browser','grill-me','teamwork-preview','learn'];
+            console.debug('[MacroDetect] cmdName="' + cmdName + '" known=' + knownCommands.includes(cmdName));
+            if (knownCommands.includes(cmdName)) {
+              // Grab the icon SVG from the clicked typeahead item
+              let iconHtml = '';
+              const iconSvg = el.querySelector('svg');
+              if (iconSvg) {
+                iconHtml = iconSvg.outerHTML;
+              }
+              stagedMacro = { name: cmdName, iconHtml };
+              renderMacroChip();
+            }
+          }
+        }
+      }
+
+      // All sidebar open/close is handled by snapshot mirroring.
+      // Just schedule snapshot refreshes after clicks so mirroring picks up
+      // AG's state change quickly.
+      if (clickId.startsWith('chat:') || clickId.startsWith('dialog:') || clickId.startsWith('subinfo:')) {
+        setTimeout(loadSnapshot, 300);
+        setTimeout(loadSnapshot, 800);
+      }
+
+      // Re-fetch right sidebar after right-sidebar clicks (tab switches, etc.)
+      if (clickId.startsWith('right:')) {
+        setTimeout(fetchRightSidebar, 300);
+        setTimeout(fetchRightSidebar, 800);
+      }
+
+      // Refresh snapshots to pick up changes
+      setTimeout(loadSnapshot, 300);
+      setTimeout(loadSnapshot, 800);
+      setTimeout(loadSnapshot, 2000);
+    });
+  });
+
+}
+
+// Wire click proxies on the static input bar (model chip, etc.)
+addClickProxyHandlers(inputBar);
+
+// ─────────────────────────────────────────────
+// Text Input Modal (for scheduled tasks form fields)
+// ─────────────────────────────────────────────
+let pendingTextInputPlaceholder = null;
+let pendingTextInputClickId = null;
+
+function showTextInput(label, placeholder, isTextarea, currentValue, clickId) {
+  pendingTextInputPlaceholder = placeholder;
+  pendingTextInputClickId = clickId || null;
+  textInputLabel.textContent = label;
+
+  if (isTextarea) {
+    textInputField.classList.add('hidden');
+    textInputArea.classList.remove('hidden');
+    textInputArea.value = currentValue || '';
+    textInputArea.placeholder = placeholder;
+  } else {
+    textInputArea.classList.add('hidden');
+    textInputField.classList.remove('hidden');
+    textInputField.value = currentValue || '';
+    textInputField.placeholder = placeholder;
+  }
+
+  textInputModal.classList.remove('hidden');
+
+  // Auto-focus after a frame (ensures keyboard pops up on mobile)
+  requestAnimationFrame(() => {
+    (isTextarea ? textInputArea : textInputField).focus();
+  });
+}
+
+function closeTextInput() {
+  textInputModal.classList.add('hidden');
+  textInputField.value = '';
+  textInputArea.value = '';
+  pendingTextInputPlaceholder = null;
+  pendingTextInputClickId = null;
+}
+
+async function submitTextInput() {
+  const isTextarea = !textInputArea.classList.contains('hidden');
+  const text = isTextarea ? textInputArea.value : textInputField.value;
+  const placeholder = pendingTextInputPlaceholder;
+  const clickId = pendingTextInputClickId;
+
+  closeTextInput();
+
+  if (!placeholder && !clickId) return;
+
+  try {
+    const res = await fetchAPI('/type-text', {
+      method: 'POST',
+      body: JSON.stringify({ placeholder, text, clickId }),
+    });
+    const result = await res.json();
+    debugLog('type-text', 'result: ' + JSON.stringify(result));
+    // Refresh snapshot to show updated value
+    setTimeout(loadSnapshot, 300);
+    setTimeout(loadSnapshot, 800);
+  } catch (err) {
+    debugLog('type-text', 'error: ' + err.message);
+  }
+}
+
+textInputCancel.addEventListener('click', closeTextInput);
+textInputBackdrop.addEventListener('click', closeTextInput);
+textInputSubmit.addEventListener('click', submitTextInput);
+
+// Submit on Enter for single-line input (not textarea)
+textInputField.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    submitTextInput();
+  }
+});
+
+// ─────────────────────────────────────────────
+// Connection Status
+// ─────────────────────────────────────────────
+function updateConnectionStatus(status) {
+  connectionDot.setAttribute('data-status', status);
+  const titles = {
+    connected: 'Connected',
+    reconnecting: 'Reconnecting...',
+    disconnected: 'Disconnected',
+  };
+  connectionDot.title = titles[status] || status;
+}
+
+// ─────────────────────────────────────────────
+// Empty State
+// ─────────────────────────────────────────────
+function showEmptyState() {
+  emptyState.classList.remove('hidden');
+}
+
+function hideEmptyState() {
+  emptyState.classList.add('hidden');
+}
+
+function updateEmptyState(subtitle) {
+  const el = emptyState.querySelector('.empty-subtitle');
+  if (el) el.textContent = subtitle;
+}
+
+// ─────────────────────────────────────────────
+// Virtual Keyboard Handling
+// ─────────────────────────────────────────────
+if (window.visualViewport) {
+  function handleViewportResize() {
+    const vh = window.visualViewport.height;
+    // Adjust body height when keyboard opens/closes
+    document.body.style.height = vh + 'px';
+    // Keep comment modals within visible area so keyboard doesn't cover actions
+    for (const modal of document.querySelectorAll('.comment-modal')) {
+      modal.style.height = vh + 'px';
+    }
+  }
+
+  window.visualViewport.addEventListener('resize', handleViewportResize);
+  window.visualViewport.addEventListener('scroll', handleViewportResize);
+}
+
+// ─────────────────────────────────────────────
+// Visibility Change — refresh on tab re-entry
+// ─────────────────────────────────────────────
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') {
+    loadSnapshot();
+  }
+});
+
+// ─────────────────────────────────────────────
+// Fallback Polling (Chrome throttles WS when tab inactive)
+// ─────────────────────────────────────────────
+setInterval(() => {
+  if (document.visibilityState === 'visible') {
+    loadSnapshot();
+  }
+}, 5000);
+
+// ─────────────────────────────────────────────
+// Utilities
+// ─────────────────────────────────────────────
+function escapeHtml(str) {
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+
+
+// ─────────────────────────────────────────────
+// Artifact Commenting
+// ─────────────────────────────────────────────
+// Check if user has an active text selection inside the right sidebar
+function hasActiveSelectionInRightSidebar() {
+  const sel = window.getSelection();
+  if (!sel || sel.isCollapsed || !sel.toString().trim()) return false;
+  const anchor = sel.anchorNode;
+  return anchor && rightSidebarContent.contains(anchor);
+}
+
+let activeArtifactUri = null;
+let activeFileUri = null;
+let pendingCommentSelection = '';
+let pendingCommentUri = '';
+let queuedComments = JSON.parse(localStorage.getItem('ag2r_queued_comments') || '[]');
+
+function saveComments() {
+  localStorage.setItem('ag2r_queued_comments', JSON.stringify(queuedComments));
+}
+
+// Track active artifact URI from snapshots
+function updateActiveArtifact(data) {
+  if (data.activeArtifactUri) {
+    if (data.activeArtifactUri !== activeArtifactUri) {
+      const uri = data.activeArtifactUri;
+      let type = 'other';
+      if (uri.includes('implementation_plan')) type = 'implementation_plan';
+      else if (uri.includes('walkthrough')) type = 'walkthrough';
+      else if (uri.includes('task')) type = 'task';
+      else if (/\.(png|jpg|jpeg|gif|svg|webp)$/i.test(uri)) type = 'image';
+      track('artifact_viewed', { type });
+    }
+    activeArtifactUri = data.activeArtifactUri;
+    activeFileUri = null;
+  } else if (data.activeFileUri) {
+    if (data.activeFileUri !== activeFileUri) {
+      track('artifact_viewed', { type: 'code_diff' });
+    }
+    activeFileUri = data.activeFileUri;
+    activeArtifactUri = null;
+  }
+}
+
+
+// ── Selection Detection (Android-optimized) ──
+// Android's native selection toolbar appears on long-press. We coexist with it
+// by using `selectionchange` (fires AFTER Android finalizes selection) instead
+// of `touchend` (fires BEFORE selection is ready). Desktop uses `mouseup` for
+// fast response. Android's native toolbar requires special handling — see comments below.
+
+// Show/position FAB for the current selection, if valid
+function showCommentFabForSelection() {
+  const sel = window.getSelection();
+  const text = sel ? sel.toString().trim() : '';
+
+  if (!text || text.length < 2) {
+    commentFab.classList.add('hidden');
+    return;
+  }
+
+  // Selection must be inside the right sidebar
+  const anchor = sel.anchorNode;
+  if (!anchor || !rightSidebarContent.contains(anchor)) {
+    commentFab.classList.add('hidden');
+    return;
+  }
+
+  const activeUri = activeArtifactUri || activeFileUri;
+  if (!activeUri) {
+    commentFab.classList.add('hidden');
+    return;
+  }
+
+  pendingCommentSelection = text;
+  pendingCommentUri = activeUri;
+
+  // Position FAB near the selection
+  const range = sel.getRangeAt(0);
+  const rect = range.getBoundingClientRect();
+  commentFab.style.top = `${rect.bottom + window.scrollY + 8}px`;
+  commentFab.style.left = `${rect.left + window.scrollX + rect.width / 2}px`;
+  commentFab.classList.remove('hidden');
+}
+
+// Desktop: mouseup gives instant feedback
+rightSidebarContent.addEventListener('mouseup', () => {
+  setTimeout(showCommentFabForSelection, 50);
+});
+
+// Mobile (Android/iOS): selectionchange fires when the OS finalizes selection.
+// Debounced to avoid rapid-fire calls while the user drags selection handles.
+let selectionChangeTimer = null;
+document.addEventListener('selectionchange', () => {
+  clearTimeout(selectionChangeTimer);
+  selectionChangeTimer = setTimeout(showCommentFabForSelection, 300);
+});
+
+// Suppress secondary context menu on right sidebar (prevents the extra
+// long-press menu on some Android browsers while keeping the primary
+// selection toolbar intact).
+rightSidebarContent.addEventListener('contextmenu', (e) => {
+  e.preventDefault();
+});
+
+// Dismiss FAB on pointerdown — but only when the tap is inside the right
+// sidebar content area (not on the FAB/modal themselves). This prevents
+// Android's native toolbar interactions (which are OUTSIDE our DOM) from
+// accidentally dismissing the FAB.
+rightSidebarContent.addEventListener('pointerdown', (e) => {
+  if (!commentFab.contains(e.target) && !commentModal.contains(e.target)) {
+    commentFab.classList.add('hidden');
+  }
+});
+
+// Open comment modal when FAB is clicked
+commentFab.addEventListener('click', () => {
+  commentFab.classList.add('hidden');
+  commentSelectionPreview.textContent = pendingCommentSelection;
+  commentInput.value = '';
+  commentModal.classList.remove('hidden');
+  commentInput.focus();
+});
+
+// Close comment modal
+function closeCommentModal() {
+  commentModal.classList.add('hidden');
+  commentInput.value = '';
+  pendingCommentSelection = '';
+}
+
+commentCancel.addEventListener('click', closeCommentModal);
+commentModalBackdrop.addEventListener('click', closeCommentModal);
+
+// Submit comment — queue it as a structured object, don't send immediately
+commentSubmit.addEventListener('click', () => {
+  const commentText = commentInput.value.trim();
+  if (!commentText) return;
+  if (!(activeArtifactUri || activeFileUri) || !pendingCommentSelection) return;
+
+  queuedComments.push({
+    uri: pendingCommentUri || activeArtifactUri || activeFileUri,
+    selection: pendingCommentSelection,
+    comment: commentText,
+  });
+  saveComments();
+  debugLog('comment', 'queued');
+  track('comment_added');
+  closeCommentModal();
+
+  // Clear the text selection to prevent stale selection state
+  window.getSelection()?.removeAllRanges();
+
+  // Show badge to indicate pending comments
+  updateCommentBadge();
+});
+
+// Format queued comments grouped by artifact URI
+function formatQueuedComments() {
+  if (queuedComments.length === 0) return '';
+
+  // Group by URI
+  const grouped = {};
+  for (const c of queuedComments) {
+    if (!grouped[c.uri]) grouped[c.uri] = [];
+    grouped[c.uri].push(c);
+  }
+
+  // Build nested bullet format
+  const lines = ['Review my comments:'];
+  for (const [uri, comments] of Object.entries(grouped)) {
+    lines.push(`* Comments on artifact URI: ${uri}`);
+    for (const c of comments) {
+      lines.push(`  * > ${c.selection}`);
+      lines.push(`    * Comment: ${c.comment}`);
+    }
+  }
+  return lines.join('\n');
+}
+
+// Drain queued comments — returns formatted string and clears queue
+function drainQueuedComments() {
+  if (queuedComments.length === 0) return '';
+  const block = formatQueuedComments();
+  queuedComments = [];
+  saveComments();
+  updateCommentBadge();
+  return block;
+}
+
+// Comment badge — shows pending comment count as a fixed banner with send shortcut
+function updateCommentBadge() {
+  let badge = document.getElementById('comment-badge');
+  if (queuedComments.length === 0) {
+    if (badge) badge.remove();
+    return;
+  }
+  if (!badge) {
+    badge = document.createElement('div');
+    badge.id = 'comment-badge';
+    document.getElementById('app').appendChild(badge);
+  }
+  const count = queuedComments.length;
+  badge.innerHTML = `<span>💬 ${count} comment${count > 1 ? 's' : ''} queued</span><button id="comment-send-btn">Send</button>`;
+  // Click badge text → open review modal (use assignment to prevent listener accumulation)
+  badge.onclick = openReviewModal;
+  // Click send button → send (stop propagation so it doesn't also open modal)
+  document.getElementById('comment-send-btn').onclick = (e) => {
+    e.stopPropagation();
+    sendQueuedComments();
+  };
+}
+
+async function sendQueuedComments() {
+  const fullMessage = drainQueuedComments();
+  if (!fullMessage) return;
+  try {
+    const resp = await fetchAPI('/send', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: fullMessage }),
+    });
+    const result = await resp.json();
+    debugLog('comment', 'send result: ' + JSON.stringify(result));
+    track('comments_sent', { count: fullMessage.split('* >').length - 1 });
+  } catch (e) {
+    console.error('[Comment] Send failed:', e);
+  }
+}
+
+// ── Comment Review Modal ──
+const reviewModal = document.getElementById('comment-review-modal');
+const reviewList = document.getElementById('comment-review-list');
+const reviewBackdrop = document.getElementById('comment-review-backdrop');
+const reviewClose = document.getElementById('comment-review-close');
+const reviewClear = document.getElementById('comment-review-clear');
+const reviewSend = document.getElementById('comment-review-send');
+
+function openReviewModal() {
+  renderReviewList();
+  reviewModal.classList.remove('hidden');
+}
+
+function closeReviewModal() {
+  reviewModal.classList.add('hidden');
+}
+
+
+function renderReviewList() {
+  if (queuedComments.length === 0) {
+    reviewList.innerHTML = '<div style="color:#888;text-align:center;padding:20px">No comments queued</div>';
+    return;
+  }
+
+  // Group by URI preserving order
+  const grouped = {};
+  const uriOrder = [];
+  for (const [i, c] of queuedComments.entries()) {
+    if (!grouped[c.uri]) { grouped[c.uri] = []; uriOrder.push(c.uri); }
+    grouped[c.uri].push({ ...c, index: i });
+  }
+
+  let html = '';
+  for (const uri of uriOrder) {
+    const basename = uri.split('/').pop();
+    html += `<div class="comment-review-file">📄 ${basename}</div>`;
+    for (const c of grouped[uri]) {
+      html += `
+        <div class="comment-review-item" data-idx="${c.index}">
+          <div class="comment-review-selection">» ${escapeHtml(c.selection)}</div>
+          <div class="comment-review-text">${escapeHtml(c.comment)}</div>
+          <div class="comment-review-actions">
+            <button class="edit" title="Edit" data-idx="${c.index}"><span class="material-symbols-rounded" style="font-size:16px">edit</span></button>
+            <button class="delete" title="Delete" data-idx="${c.index}"><span class="material-symbols-rounded" style="font-size:16px">delete</span></button>
+          </div>
+        </div>`;
+    }
+  }
+  reviewList.innerHTML = html;
+
+  // Wire edit/delete
+  reviewList.querySelectorAll('.edit').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const idx = parseInt(btn.dataset.idx);
+      const item = btn.closest('.comment-review-item');
+      const textEl = item.querySelector('.comment-review-text');
+      // Inline edit: replace text with a textarea
+      const textarea = document.createElement('textarea');
+      textarea.className = 'comment-input';
+      textarea.value = queuedComments[idx].comment;
+      textarea.rows = 2;
+      textEl.replaceWith(textarea);
+      textarea.focus();
+      // Save on blur or Enter
+      const save = () => {
+        const val = textarea.value.trim();
+        if (val) {
+          queuedComments[idx].comment = val;
+          saveComments();
+          track('comment_edited');
+        }
+        renderReviewList();
+        updateCommentBadge();
+      };
+      textarea.addEventListener('blur', save);
+      textarea.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); save(); }
+      });
+    });
+  });
+  reviewList.querySelectorAll('.delete').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const idx = parseInt(btn.dataset.idx);
+      queuedComments.splice(idx, 1);
+      saveComments();
+      track('comment_deleted');
+      renderReviewList();
+      updateCommentBadge();
+      if (queuedComments.length === 0) closeReviewModal();
+    });
+  });
+}
+
+reviewBackdrop.addEventListener('click', closeReviewModal);
+reviewClose.addEventListener('click', closeReviewModal);
+reviewClear.addEventListener('click', () => {
+  queuedComments = [];
+  saveComments();
+  updateCommentBadge();
+  closeReviewModal();
+});
+reviewSend.addEventListener('click', () => {
+  closeReviewModal();
+  sendQueuedComments();
+});
+
+// Show badge on load if there are persisted comments
+if (queuedComments.length > 0) updateCommentBadge();
+
+
+// ─────────────────────────────────────────────
+// Initialization
+// ─────────────────────────────────────────────
+connectWebSocket();
+loadSnapshot();
+updateActionButton();
+
+// ─────────────────────────────────────────────
+// Push Notifications — Auto-Subscribe
+// ─────────────────────────────────────────────
+
+// ─────────────────────────────────────────────
+// Notification Bell — subscribe/pause/resume
+// ─────────────────────────────────────────────
+// States: 'unsubscribed' | 'active' | 'paused'
+// Unsubscribed: gray bell + notifications_off icon
+// Active:       blue bell + notifications icon
+// Paused:       gray bell + zzz overlay via CSS
+
+const _bellBtn = document.getElementById('notification-bell');
+const _bellIcon = document.getElementById('notification-bell-icon');
+let _bellState = 'unsubscribed'; // current state
+
+function setBellState(state) {
+  _bellState = state;
+  if (!_bellBtn || !_bellIcon) return;
+  _bellBtn.dataset.state = state;
+
+  if (state === 'unsubscribed') {
+    _bellIcon.textContent = 'notifications_off';
+    _bellBtn.title = 'Notifications off — tap to enable';
+  } else if (state === 'active') {
+    _bellIcon.textContent = 'notifications_active';
+    _bellBtn.title = 'Notifications on — tap to pause';
+  } else if (state === 'paused') {
+    _bellIcon.textContent = 'notifications';
+    _bellBtn.title = 'Notifications paused — tap to resume';
+  }
+}
+
+// Detect current notification state on page load
+async function detectBellState() {
+  // 1. Browser permission check
+  if (!('Notification' in window) || !('serviceWorker' in navigator) || !('PushManager' in window)) {
+    setBellState('unsubscribed');
+    return;
+  }
+
+  if (Notification.permission === 'denied') {
+    setBellState('unsubscribed');
+    return;
+  }
+
+  // 2. Check for existing push subscription
+  try {
+    const registration = await navigator.serviceWorker.ready;
+    const subscription = await registration.pushManager.getSubscription();
+    if (!subscription) {
+      setBellState('unsubscribed');
+      return;
+    }
+
+    // Verify VAPID key matches server's current key
+    const keyMatch = await checkVapidKeyMatch(subscription);
+    if (!keyMatch) {
+      // Stale subscription — treat as unsubscribed
+      await subscription.unsubscribe();
+      setBellState('unsubscribed');
+      return;
+    }
+
+    // 3. Re-sync subscription to server (server may have lost it after restart/wipe)
+    await sendSubscription(subscription);
+
+    // 4. Check server-side pause state
+    const res = await fetchAPI('/push/state');
+    const state = await res.json();
+    setBellState(state.paused ? 'paused' : 'active');
+  } catch (e) {
+    console.debug('[Bell] Detection error:', e.message);
+    setBellState('unsubscribed');
+  }
+}
+
+// Bell tap handler — cycles through states
+async function handleBellTap() {
+  if (_bellState === 'unsubscribed') {
+    // Subscribe flow
+    await subscribeNotifications();
+  } else if (_bellState === 'active') {
+    // Pause
+    try {
+      await fetchAPI('/push/pause', { method: 'POST' });
+      setBellState('paused');
+    } catch (e) {
+      console.debug('[Bell] Pause error:', e.message);
+    }
+  } else if (_bellState === 'paused') {
+    // Resume
+    try {
+      await fetchAPI('/push/resume', { method: 'POST' });
+      setBellState('active');
+    } catch (e) {
+      console.debug('[Bell] Resume error:', e.message);
+    }
+  }
+}
+
+async function subscribeNotifications() {
+  try {
+    // Register SW first
+    const registration = await navigator.serviceWorker.register('/sw.js');
+
+    // Check existing subscription
+    const existing = await registration.pushManager.getSubscription();
+    if (existing) {
+      const keyMatch = await checkVapidKeyMatch(existing);
+      if (keyMatch) {
+        // Re-sync with server
+        await sendSubscription(existing);
+        // Ensure not paused
+        await fetchAPI('/push/resume', { method: 'POST' });
+        setBellState('active');
+        return;
+      }
+      // VAPID mismatch — unsubscribe old and re-subscribe
+      await existing.unsubscribe();
+    }
+
+    // Request permission if needed
+    if (Notification.permission === 'default') {
+      const result = await Notification.requestPermission();
+      if (result !== 'granted') {
+        setBellState('unsubscribed');
+        return;
+      }
+    }
+
+    if (Notification.permission !== 'granted') {
+      setBellState('unsubscribed');
+      return;
+    }
+
+    // Subscribe with VAPID key
+    await subscribePush(registration);
+    // Ensure not paused
+    await fetchAPI('/push/resume', { method: 'POST' });
+    setBellState('active');
+  } catch (e) {
+    console.debug('[Bell] Subscribe error:', e.message);
+    setBellState('unsubscribed');
+  }
+}
+
+// Auto-detect permission revocation when user returns to app
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden && _bellState !== 'unsubscribed') {
+    if ('Notification' in window && Notification.permission === 'denied') {
+      setBellState('unsubscribed');
+    }
+  }
+});
+
+if (_bellBtn) {
+  _bellBtn.addEventListener('click', handleBellTap);
+}
+
+// ─────────────────────────────────────────────
+// Push Subscription Helpers
+// ─────────────────────────────────────────────
+
+async function checkVapidKeyMatch(subscription) {
+  try {
+    const res = await fetchAPI('/push/vapid-public-key');
+    const { publicKey } = await res.json();
+    const serverKey = urlBase64ToUint8Array(publicKey);
+    const subKey = new Uint8Array(subscription.options.applicationServerKey);
+    if (serverKey.length !== subKey.length) return false;
+    return serverKey.every((b, i) => b === subKey[i]);
+  } catch {
+    // If we can't fetch the key, assume match to avoid breaking existing subscriptions
+    return true;
+  }
+}
+
+async function subscribePush(registration) {
+  const res = await fetchAPI('/push/vapid-public-key');
+  const { publicKey } = await res.json();
+
+  const subscription = await registration.pushManager.subscribe({
+    userVisibleOnly: true,
+    applicationServerKey: urlBase64ToUint8Array(publicKey),
+  });
+
+  await sendSubscription(subscription);
+}
+
+async function sendSubscription(subscription) {
+  await fetch('/push/subscribe', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(subscription),
+  });
+}
+
+function urlBase64ToUint8Array(base64String) {
+  const padding = '='.repeat((4 - base64String.length % 4) % 4);
+  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+  const raw = atob(base64);
+  const arr = new Uint8Array(raw.length);
+  for (let i = 0; i < raw.length; i++) arr[i] = raw.charCodeAt(i);
+  return arr;
+}
+
+// ─────────────────────────────────────────────
+// Notification Navigation (from push notification clicks)
+// ─────────────────────────────────────────────
+
+async function navigateToConversation(conversationId) {
+  try {
+    const res = await fetchAPI('/navigate-conversation', {
+      method: 'POST',
+      body: JSON.stringify({ conversationId }),
+    });
+    const result = await res.json();
+    console.debug('[Notification] Navigate to conversation:', conversationId, result);
+    if (!result?.ok) {
+      // Fallback: just open sidebar so user can find it manually
+      openLeftSidebar();
+    }
+  } catch (err) {
+    console.debug('[Notification] Navigate error:', err.message);
+    openLeftSidebar();
+  }
+}
+
+// ─────────────────────────────────────────────
+// Initialization
+// ─────────────────────────────────────────────
+
+// Register SW and detect bell state (replaces old auto-subscribe initPushNotifications)
+(async () => {
+  if ('serviceWorker' in navigator) {
+    try {
+      await navigator.serviceWorker.register('/sw.js');
+    } catch (e) {
+      console.debug('[SW] Registration failed:', e.message);
+    }
+  }
+  await detectBellState();
+})();
+
+// Listen for postMessage from service worker (notification click → navigate or open sidebar)
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.addEventListener('message', (event) => {
+    if (event.data?.type === 'navigate-conversation' && event.data.conversationId) {
+      navigateToConversation(event.data.conversationId);
+    } else if (event.data?.type === 'open-sidebar') {
+      openLeftSidebar();
+    }
+  });
+}
