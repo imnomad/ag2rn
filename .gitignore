@@ -1,13 +1,14 @@
 # Dependencies
 node_modules/
 
-# Dev tools & config (copy from source worktree for new worktrees)
+# Dev tools & config
 _tools/
 certs/
 .env
 .zsh_session_env
 
-# Generated / runtime
+# Generated / runtime & build outputs
+dist/
 *.log
 .DS_Store
 .ag2r-telemetry-id

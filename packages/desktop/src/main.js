@@ -3,8 +3,7 @@
 
 import { app, BrowserWindow, Tray, Menu, nativeImage, shell, dialog } from 'electron';
 import path from 'path';
-import { fileURLToPath } from 'url';
-import http from 'http';
+import { fileURLToPath, pathToFileURL } from 'url';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -17,6 +16,18 @@ const DASHBOARD_URL = `https://localhost:${SERVER_PORT}/dashboard`;
 
 // Ignore self-signed certs for local HTTPS connection
 app.commandLine.appendSwitch('ignore-certificate-errors');
+
+// Start the internal AG2RN Express + WebSocket + CDP server
+async function startInternalServer() {
+  try {
+    const serverPath = path.resolve(__dirname, '../../../server.js');
+    const serverUrl = pathToFileURL(serverPath).href;
+    await import(serverUrl);
+    console.log('[Desktop] Internal AG2RN Core Server started successfully.');
+  } catch (err) {
+    console.log('[Desktop] Server bootstrap note:', err.message);
+  }
+}
 
 function createWindow() {
   mainWindow = new BrowserWindow({
@@ -34,12 +45,13 @@ function createWindow() {
     autoHideMenuBar: true,
   });
 
-  mainWindow.loadURL(DASHBOARD_URL).catch(() => {
-    // Retry if server is still starting
-    setTimeout(() => {
-      if (mainWindow) mainWindow.loadURL(DASHBOARD_URL);
-    }, 1500);
-  });
+  const loadDashboard = () => {
+    mainWindow.loadURL(DASHBOARD_URL).catch(() => {
+      setTimeout(loadDashboard, 1000);
+    });
+  };
+
+  loadDashboard();
 
   // Minimize to tray on close unless quitting
   mainWindow.on('close', (event) => {
@@ -75,7 +87,7 @@ function createTray() {
       },
     },
     {
-      label: 'Abrir en Navegador',
+      label: 'Abrir en Navegador Web',
       click: () => {
         shell.openExternal(DASHBOARD_URL);
       },
@@ -85,13 +97,13 @@ function createTray() {
       label: 'Lanzar Antigravity 2.0',
       click: async () => {
         try {
-          const res = await fetch(`http://localhost:${SERVER_PORT}/api/antigravity/launch`, { method: 'POST' });
+          const res = await fetch(`https://localhost:${SERVER_PORT}/api/antigravity/launch`, { method: 'POST' });
           const data = await res.json();
           if (data.ok) {
             dialog.showMessageBox({
               type: 'info',
               title: 'AG2RN',
-              message: 'Antigravity 2.0 ha sido lanzado con éxito.',
+              message: 'Antigravity 2.0 ha sido lanzado con éxito con CDP habilitado.',
             });
           }
         } catch {}
@@ -101,7 +113,7 @@ function createTray() {
       label: 'Reiniciar Antigravity 2.0',
       click: async () => {
         try {
-          await fetch(`http://localhost:${SERVER_PORT}/restart-antigravity`, { method: 'POST' });
+          await fetch(`https://localhost:${SERVER_PORT}/restart-antigravity`, { method: 'POST' });
         } catch {}
       },
     },
@@ -138,7 +150,8 @@ if (!gotTheLock) {
     }
   });
 
-  app.whenReady().then(() => {
+  app.whenReady().then(async () => {
+    await startInternalServer();
     createTray();
     createWindow();
 
