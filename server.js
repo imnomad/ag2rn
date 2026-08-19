@@ -21,6 +21,16 @@ import webpush from 'web-push';
 import { track, startSession, endSession } from './src/telemetry.js';
 import { fetchFlags, getFlags } from './src/feature-flags.js';
 import { getConfigPath, ensureConfigDir, getEnv } from './src/paths.js';
+import { readDevToolsPort, findAntigravityExecutable } from './packages/core/src/lifecycle/detector.js';
+import { isAntigravityRunning, launchAntigravity, restartAntigravity } from './packages/core/src/lifecycle/launcher.js';
+import {
+  createPairingPayload,
+  registerPairedDevice,
+  verifyDeviceAuth,
+  getAuthorizedDevices,
+  revokePairedDevice,
+} from './packages/core/src/pairing/pairing.js';
+import { getLocalIpAddresses, resolveConnectionUrl, startCloudflareTunnel } from './packages/core/src/tunnel/tunnel-manager.js';
 
 // CDP scripts — browser-side JS evaluated via Runtime.evaluate
 // See src/cdp-scripts/ for the actual script content
@@ -349,20 +359,7 @@ function ensureCerts() {
 // CDP Connection
 // ─────────────────────────────────────────────
 
-// Read CDP port from AG's DevToolsActivePort file (written when --remote-debugging-port=0)
-function readDevToolsPort() {
-  const dtpPath = path.join(
-    os.homedir(), 'Library', 'Application Support', 'Antigravity', 'DevToolsActivePort'
-  );
-  try {
-    const content = fs.readFileSync(dtpPath, 'utf-8').trim();
-    const port = parseInt(content.split('\n')[0], 10);
-    if (port > 0 && port < 65536) return port;
-  } catch {
-    // File doesn't exist or unreadable — AG may not be running
-  }
-  return null;
-}
+// CDP port detection is imported from packages/core/src/lifecycle/detector.js (cross-platform Win/Mac/Linux)
 
 async function tryPortForTarget(port) {
   try {
@@ -1214,57 +1211,107 @@ app.post('/dismiss-settings', async (req, res) => {
   }
 });
 
-// --- Restart Antigravity (kill + relaunch the desktop app) ---
+// --- Antigravity 2.0 Process Management (Cross-platform Win/Mac/Linux) ---
+app.get('/api/antigravity/status', (req, res) => {
+  const agStatus = isAntigravityRunning();
+  const exePath = findAntigravityExecutable();
+  const activePort = readDevToolsPort();
+  res.json({
+    running: agStatus.running,
+    pid: agStatus.pid,
+    executableFound: !!exePath,
+    executablePath: exePath,
+    devtoolsPort: activePort,
+    cdpConnected: !!cdpClient,
+  });
+});
+
+app.post('/api/antigravity/launch', (req, res) => {
+  log('Launcher', 'Launching Antigravity 2.0 with CDP...');
+  const result = launchAntigravity(CDP_PORT);
+  track('launch_antigravity', result);
+  res.json(result);
+});
+
 app.post('/restart-antigravity', async (req, res) => {
+  log('Restart', 'Restarting Antigravity 2.0 (cross-platform)...');
+  track('restart_antigravity');
   try {
-    // Find the Antigravity Electron process PID
-    // pgrep doesn't work on macOS Electron — must use ps aux (see GEMINI.md gotcha)
-    let pid = null;
-    try {
-      const psOutput = execSync('ps aux', { encoding: 'utf8' });
-      for (const line of psOutput.split('\n')) {
-        if (line.includes('Antigravity.app/Contents/MacOS/Antigravity') && !line.includes('grep')) {
-          pid = parseInt(line.trim().split(/\s+/)[1], 10);
-          break;
-        }
-      }
-    } catch (e) {
-      log('Restart', 'Failed to find Antigravity process:', e.message);
-      return res.json({ ok: false, reason: 'process_not_found' });
-    }
-
-    if (!pid) {
-      log('Restart', 'Antigravity process not found');
-      return res.json({ ok: false, reason: 'process_not_found' });
-    }
-
-    log('Restart', `Killing Antigravity (PID ${pid})...`);
-    track('restart_antigravity');
-
-    // Graceful kill
-    try { process.kill(pid, 'SIGTERM'); } catch (e) {
-      log('Restart', 'Kill failed:', e.message);
-      return res.json({ ok: false, reason: 'kill_failed' });
-    }
-
-    // Wait for process to die, then relaunch
-    setTimeout(() => {
-      log('Restart', 'Relaunching Antigravity...');
-      // Launch AG in a fresh login shell so it doesn't inherit AG2R's env vars.
-      // env -i clears all env, then bash -l rebuilds from shell configs (~/.bash_profile, etc.)
-      // — same clean environment as when cron's ag-watchdog.sh starts AG.
-      const home = process.env.HOME || '/Users/' + process.env.USER;
-      exec(`env -i HOME=${home} /bin/bash -l -c 'open -a Antigravity --args --remote-debugging-port=9000'`, (err) => {
-        if (err) log('Restart', 'Relaunch error:', err.message);
-        else log('Restart', 'Relaunch command sent');
-      });
-    }, 1500);
-
-    res.json({ ok: true });
+    const result = await restartAntigravity(CDP_PORT);
+    res.json(result);
   } catch (e) {
-    log('Restart', 'Unexpected error:', e.message);
+    log('Restart', 'Error:', e.message);
     res.status(500).json({ ok: false, reason: e.message });
   }
+});
+
+// --- System & Network Status Endpoint ---
+app.get('/api/status', (req, res) => {
+  const agStatus = isAntigravityRunning();
+  const localIps = getLocalIpAddresses();
+  const activeUrl = resolveConnectionUrl(PORT);
+
+  res.json({
+    name: appName,
+    env: getEnv(),
+    platform: os.platform(),
+    hostname: os.hostname(),
+    port: PORT,
+    cdpConnected: !!cdpClient,
+    cdpPort: CDP_PORT,
+    antigravityRunning: agStatus.running,
+    antigravityPid: agStatus.pid,
+    localIps,
+    connectionUrl: activeUrl,
+    wsClients: wsClients.size,
+    subscribers: pushSubscriptions.size,
+  });
+});
+
+// --- QR Pairing Endpoints for Mobile Clients (iOS & Android) ---
+let currentPairingState = null;
+
+app.get('/api/pairing/qr', (req, res) => {
+  const endpoint = resolveConnectionUrl(PORT);
+  const serverName = `${os.hostname()} (${os.platform()})`;
+  currentPairingState = createPairingPayload(endpoint, serverName, APP_PASSWORD);
+  res.json({
+    ok: true,
+    qrPayload: currentPairingState.qrPayload,
+    endpoint,
+    serverName,
+    expiresAt: currentPairingState.expiresAt,
+  });
+});
+
+app.post('/api/pairing/register', (req, res) => {
+  const { deviceId, deviceName, platform, token } = req.body || {};
+  if (!deviceId || !token) {
+    return res.status(400).json({ error: 'deviceId and token are required' });
+  }
+
+  const activeToken = currentPairingState ? currentPairingState.pairingToken : null;
+  const result = registerPairedDevice(deviceId, deviceName, platform, token, activeToken);
+
+  if (result.success) {
+    log('Pairing', `Successfully paired ${deviceName || 'device'} (${platform || 'mobile'}) [${deviceId}]`);
+    track('device_paired', { platform });
+    return res.json({ ok: true, authToken: result.authToken });
+  }
+
+  res.status(401).json({ ok: false, error: result.error });
+});
+
+app.get('/api/pairing/devices', (req, res) => {
+  res.json({ devices: getAuthorizedDevices() });
+});
+
+app.post('/api/pairing/revoke', (req, res) => {
+  const { deviceId } = req.body || {};
+  if (!deviceId) return res.status(400).json({ error: 'deviceId is required' });
+  revokePairedDevice(deviceId);
+  log('Pairing', `Revoked device ${deviceId}`);
+  res.json({ ok: true });
 });
 
 // --- Click Proxy (forward clicks to real AG DOM) ---

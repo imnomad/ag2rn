@@ -1,16 +1,22 @@
 {
-  "name": "ag2r",
-  "version": "1.0.0",
-  "description": "AG2R — Antigravity 2.0 Remote. Mobile remote interface for monitoring and interacting with Antigravity AI coding sessions.",
+  "name": "ag2rn",
+  "version": "2.0.0",
+  "description": "AG2RN — Antigravity 2.0 Remote Native. Cross-platform desktop server and native iOS/Android companion suite for Antigravity 2.0.",
   "type": "module",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "dev": "node --watch server.js"
+    "dev": "node --watch server.js",
+    "test": "node packages/core/test/lifecycle.test.js"
   },
   "keywords": [
     "antigravity",
+    "antigravity-2.0",
     "remote",
+    "native",
+    "ios",
+    "android",
+    "tauri",
     "cdp",
     "ai"
   ],
