@@ -1977,10 +1977,12 @@ async function start() {
   // Create HTTPS server
   const server = createHttpsServer(sslOpts, app);
 
-  // WebSocket server on the same HTTPS server
+  // WebSocket servers for both HTTPS and HTTP cleartext
   const wss = new WebSocketServer({ server });
+  const httpServer = createHttpServer(app);
+  const httpWss = new WebSocketServer({ server: httpServer });
 
-  wss.on('connection', (ws, req) => {
+  const handleWsConn = (ws, req) => {
     // Authenticate WebSocket connections
     if (AUTH_ENABLED) {
       const cookies = parseCookiesFromHeader(req.headers.cookie || '');
@@ -2034,7 +2036,10 @@ async function start() {
       if (ws._visible) visibleClients--;
       wsClients.delete(ws);
     });
-  });
+  };
+
+  wss.on('connection', handleWsConn);
+  httpWss.on('connection', handleWsConn);
 
   // Ensure flags are loaded before accepting connections
   await flagsReady;
@@ -2060,6 +2065,12 @@ async function start() {
       log('Server', `Tunnel URL: ${TUNNEL_URL}`);
     }
     startSession();
+  });
+
+  const HTTP_PORT = PORT + 1;
+  httpServer.on('error', () => {});
+  httpServer.listen(HTTP_PORT, () => {
+    log('Server', `HTTP cleartext port active on http://localhost:${HTTP_PORT}`);
   });
 
   // Connect to CDP
