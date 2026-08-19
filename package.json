@@ -50,7 +50,8 @@
       "output": "dist/desktop"
     },
     "files": [
-      "packages/**/*",
+      "packages/core/**/*",
+      "packages/desktop/**/*",
       "public/**/*",
       "src/**/*",
       "server.js",

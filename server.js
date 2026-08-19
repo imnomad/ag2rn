@@ -2042,6 +2042,18 @@ async function start() {
   // Automatically find free port if desired port is in use
   PORT = await findAvailablePort(PORT);
 
+  server.on('error', (err) => {
+    if (err.code === 'EADDRINUSE') {
+      log('Server', `Port ${PORT} is in use by another instance. Trying next free port...`);
+      setTimeout(async () => {
+        PORT = await findAvailablePort(PORT + 1);
+        server.listen(PORT);
+      }, 300);
+    } else {
+      log('Server', `HTTPS server error: ${err.message}`);
+    }
+  });
+
   server.listen(PORT, () => {
     log('Server', `${appName} (env: ${getEnv()}) running on https://localhost:${PORT}`);
     if (TUNNEL_URL) {

@@ -10,8 +10,12 @@ import { findAvailablePort } from '../../core/src/tunnel/port-finder.js';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Global Error Handler so errors are never silent
+// Global Error Handler so fatal errors are caught gracefully
 process.on('uncaughtException', (err) => {
+  if (err.message && err.message.includes('EADDRINUSE')) {
+    console.log('[Desktop] Port in use notice (non-fatal):', err.message);
+    return;
+  }
   console.error('[Fatal Desktop Error]', err);
   try {
     dialog.showErrorBox('AG2RN - Error Inesperado', `${err.message}\n\n${err.stack || ''}`);
@@ -42,9 +46,25 @@ function getAppRoot() {
   return path.resolve(__dirname, '../../../');
 }
 
+// Check if server is already responding on a port
+async function isServerRunning(port) {
+  try {
+    const res = await fetch(`https://localhost:${port}/api/status`);
+    return res.status === 200 || res.status === 401;
+  } catch {
+    return false;
+  }
+}
+
 // Start the internal AG2RN Express + WebSocket + CDP server
 async function startInternalServer() {
   try {
+    const isRunning = await isServerRunning(SERVER_PORT);
+    if (isRunning) {
+      console.log('[Desktop] Server is already active on port', SERVER_PORT);
+      return;
+    }
+
     const root = getAppRoot();
     const serverPath = path.join(root, 'server.js');
     console.log('[Desktop] Bootstrapping core server at:', serverPath);
@@ -57,8 +77,11 @@ async function startInternalServer() {
       console.error('[Desktop] server.js not found at:', serverPath);
     }
   } catch (err) {
-    console.error('[Desktop] Server bootstrap failed:', err);
-    dialog.showErrorBox('AG2RN - Error al iniciar servidor', err.message);
+    if (err.message && err.message.includes('EADDRINUSE')) {
+      console.log('[Desktop] Port already active (attached cleanly)');
+      return;
+    }
+    console.error('[Desktop] Server bootstrap notice:', err.message);
   }
 }
 
@@ -201,9 +224,15 @@ if (!gotTheLock) {
   });
 
   app.whenReady().then(async () => {
-    SERVER_PORT = await findAvailablePort(SERVER_PORT);
-    process.env.PORT = String(SERVER_PORT);
-    await startInternalServer();
+    const alreadyRunning = await isServerRunning(SERVER_PORT);
+    if (!alreadyRunning) {
+      SERVER_PORT = await findAvailablePort(SERVER_PORT);
+      process.env.PORT = String(SERVER_PORT);
+      await startInternalServer();
+    } else {
+      console.log('[Desktop] Existing AG2RN server detected on port', SERVER_PORT);
+    }
+
     createTray();
     createWindow();
 
