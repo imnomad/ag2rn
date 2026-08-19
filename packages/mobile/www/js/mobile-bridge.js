@@ -72,29 +72,33 @@
           <div style="font-size: 42px; margin-bottom: 12px;">📱 💻</div>
           <h3 style="font-size: 1.15rem; font-weight: 600; margin-bottom: 8px;">Conectar a tu Computadora</h3>
           <p style="font-size: 0.85rem; color: #94a3b8; line-height: 1.5; margin-bottom: 20px;">
-            Pega el <strong>Enlace Mágico</strong> copiado del Desktop Control Center o presiona <strong>Auto-Detectar</strong>.
+            Presiona <strong>Auto-Detectar</strong> o pega el enlace mágico de tu PC.
           </p>
 
           <div style="display: flex; flex-direction: column; gap: 12px; text-align: left;">
-            <label style="font-size: 0.75rem; color: #38bdf8; font-weight: 600;">Enlace de la PC o Enlace Mágico:</label>
-            <input id="manual-pairing-input" type="text" placeholder="Pega el enlace mágico o IP aquí..." style="
+            <button id="btn-auto-detect" style="
+              background: linear-gradient(135deg, #38bdf8, #2563eb);
+              color: white; border: none; padding: 15px; border-radius: 12px; font-size: 1rem; font-weight: 700; cursor: pointer;
+              display: flex; align-items: center; justify-content: center; gap: 8px; box-shadow: 0 4px 12px rgba(37,99,235,0.4);
+            ">
+              <span>⚡ Auto-Detectar Servidor Local</span>
+            </button>
+
+            <div style="display: flex; align-items: center; gap: 8px; margin: 6px 0;">
+              <div style="flex: 1; height: 1px; background: rgba(255,255,255,0.1);"></div>
+              <span style="font-size: 0.75rem; color: #64748b;">O ENTRADA MANUAL</span>
+              <div style="flex: 1; height: 1px; background: rgba(255,255,255,0.1);"></div>
+            </div>
+
+            <input id="manual-pairing-input" type="text" placeholder="Ej: http://10.0.2.2:3821 o enlace..." style="
               background: #030712; border: 1px solid rgba(255,255,255,0.15); color: white;
               padding: 12px 14px; border-radius: 10px; font-size: 0.85rem; width: 100%; box-sizing: border-box; outline: none;
             ">
             <button id="btn-submit-manual" style="
-              background: linear-gradient(135deg, #38bdf8, #2563eb);
-              color: white; border: none; padding: 14px; border-radius: 10px; font-size: 0.95rem; font-weight: 600; cursor: pointer;
-              display: flex; align-items: center; justify-content: center; gap: 8px; margin-top: 4px;
+              background: rgba(255,255,255,0.08); color: white; border: 1px solid rgba(255,255,255,0.15);
+              padding: 11px; border-radius: 10px; font-size: 0.85rem; font-weight: 600; cursor: pointer;
             ">
-              <span>Conectar con Antigravity 2.0</span>
-            </button>
-
-            <button id="btn-auto-detect" style="
-              background: rgba(255,255,255,0.06); color: #38bdf8; border: 1px solid rgba(56,189,248,0.3);
-              padding: 10px; border-radius: 10px; font-size: 0.85rem; font-weight: 600; cursor: pointer;
-              display: flex; align-items: center; justify-content: center; gap: 6px; margin-top: 2px;
-            ">
-              <span>⚡ Auto-Detectar Servidor Local</span>
+              <span>Conectar Manualmente</span>
             </button>
           </div>
         </div>
@@ -108,18 +112,17 @@
     const statusMsg = document.getElementById('pairing-status-msg');
     const manualInput = document.getElementById('manual-pairing-input');
 
+    document.getElementById('btn-auto-detect').addEventListener('click', () => {
+      autoDetectAndConnect(statusMsg);
+    });
+
     document.getElementById('btn-submit-manual').addEventListener('click', () => {
       const val = manualInput.value.trim();
       if (!val) {
-        // If empty, trigger auto detect
         autoDetectAndConnect(statusMsg);
         return;
       }
       processPairingInput(val, statusMsg);
-    });
-
-    document.getElementById('btn-auto-detect').addEventListener('click', () => {
-      autoDetectAndConnect(statusMsg);
     });
   }
 
@@ -134,20 +137,19 @@
           const payload = JSON.parse(atob(dataBase64));
           if (payload.url) {
             candidates.push({ url: payload.url, token: payload.token });
-            if (payload.url.includes('192.168.')) {
-              const port = payload.url.split(':')[2] || '3820';
-              candidates.push({ url: `https://10.0.2.2:${port}`, token: payload.token });
-              candidates.push({ url: `http://10.0.2.2:${parseInt(port) + 1}`, token: payload.token });
-            }
+            const port = payload.url.split(':')[2] || '3820';
+            const httpPort = parseInt(port) + 1;
+            candidates.push({ url: `http://10.0.2.2:${httpPort}`, token: payload.token });
+            candidates.push({ url: `https://10.0.2.2:${port}`, token: payload.token });
+            candidates.push({ url: `http://192.168.0.15:${httpPort}`, token: payload.token });
           }
         } catch {}
       } else {
         if (!clean.startsWith('http://') && !clean.startsWith('https://')) {
-          candidates.push({ url: `https://${clean}` });
           candidates.push({ url: `http://${clean}` });
+          candidates.push({ url: `https://${clean}` });
         } else {
           candidates.push({ url: clean });
-          // Also try http alternative if https was given
           if (clean.startsWith('https://')) {
             candidates.push({ url: clean.replace('https://', 'http://').replace(':3820', ':3821') });
           }
@@ -155,20 +157,20 @@
       }
     }
 
-    // Default discovery candidates
-    candidates.push({ url: 'https://10.0.2.2:3820' });
+    // Default discovery candidates (HTTP first for emulator speed, then HTTPS)
     candidates.push({ url: 'http://10.0.2.2:3821' });
-    candidates.push({ url: 'https://192.168.0.15:3820' });
+    candidates.push({ url: 'https://10.0.2.2:3820' });
     candidates.push({ url: 'http://192.168.0.15:3821' });
-    candidates.push({ url: 'https://localhost:3820' });
+    candidates.push({ url: 'https://192.168.0.15:3820' });
     candidates.push({ url: 'http://localhost:3821' });
+    candidates.push({ url: 'https://localhost:3820' });
 
     return candidates;
   }
 
   // Auto-probe all candidate addresses and connect to the fastest responder
   async function autoDetectAndConnect(statusEl) {
-    statusEl.textContent = 'Buscando servidor AG2RN en la red...';
+    statusEl.textContent = '⚡ Probando conexiones con la PC...';
     statusEl.style.color = '#38bdf8';
 
     const candidates = getProbeCandidates();
@@ -184,22 +186,22 @@
         clearTimeout(timeout);
 
         if (res.ok || res.status === 200 || res.status === 401) {
-          statusEl.textContent = `¡Servidor encontrado en ${c.url}! Conectando...`;
+          statusEl.textContent = `¡Servidor detectado en ${c.url}! Conectando...`;
           statusEl.style.color = '#10b981';
 
-          await completePairing(c.url, '', statusEl);
+          await completePairing(c.url, c.token || '', statusEl);
           return;
         }
       } catch (e) {}
     }
 
-    statusEl.textContent = 'No se encontró el servidor. Asegúrate de que AG2RN esté abierto en la PC.';
+    statusEl.textContent = 'No se pudo conectar. Verifica que AG2RN esté abierto en tu PC.';
     statusEl.style.color = '#f43f5e';
   }
 
   // Process pairing input with smart fallbacks
   async function processPairingInput(inputString, statusEl) {
-    statusEl.textContent = 'Verificando conexión con el servidor...';
+    statusEl.textContent = 'Verificando dirección...';
     statusEl.style.color = '#38bdf8';
 
     const candidates = getProbeCandidates(inputString);
@@ -257,7 +259,7 @@
         const overlay = document.getElementById('mobile-pairing-overlay');
         if (overlay) overlay.remove();
         window.location.reload();
-      }, 700);
+      }, 600);
     } catch (err) {
       statusEl.textContent = `Error: ${err.message}`;
       statusEl.style.color = '#f43f5e';

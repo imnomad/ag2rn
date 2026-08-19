@@ -2,10 +2,9 @@
   "appId": "com.ag2rn.app",
   "appName": "AG2RN",
   "webDir": "www",
-  "bundledWebRuntime": false,
   "server": {
     "cleartext": true,
-    "androidScheme": "https",
+    "androidScheme": "http",
     "allowNavigation": ["*"]
   },
   "plugins": {
@@ -27,6 +26,7 @@
     "scheme": "AG2RN"
   },
   "android": {
-    "allowMixedContent": true
+    "allowMixedContent": true,
+    "captureInput": true
   }
 }
