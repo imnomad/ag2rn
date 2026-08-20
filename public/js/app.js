@@ -622,35 +622,45 @@ async function loadSnapshot() {
     // 2000ms was too long and caused every-other-open to be suppressed.
     const suppressOverlay = Date.now() - overlayDismissedAt < 300;
     if (data.dropdownHtml && !suppressOverlay) {
+      const isModelPanel = data.dropdownHtml.includes('model-selector-panel') || data.dropdownHtml.includes('model-selector-header');
+      if (isModelPanel) {
+        dropdownOverlay.classList.add('model-picker-overlay');
+      } else {
+        dropdownOverlay.classList.remove('model-picker-overlay');
+      }
+
       const tempDiv = document.createElement('div');
       tempDiv.innerHTML = data.dropdownHtml;
       const allBtns = tempDiv.querySelectorAll('[data-ag-click-id]');
       if (allBtns.length > 0) {
-        // Options to hide from dropdown menus (e.g., Rename triggers inline sidebar edit, unusable in AG2R)
-        const HIDDEN_DROPDOWN_OPTIONS = /^rename$/i;
-        // Detect typeahead (items have role="option") vs kebab/context menus
-        const isTypeahead = tempDiv.querySelector('[role="option"]') !== null;
-        let buttonsHtml = '';
-        allBtns.forEach(btn => {
-          const text = btn.textContent.trim();
-          if (HIDDEN_DROPDOWN_OPTIONS.test(text)) return;
-          const id = btn.dataset.agClickId;
-          const label = btn.dataset.agClickLabel || text;
-          if (isTypeahead) {
-            // Preserve inner HTML structure for typeahead items (icon + name + description spans)
-            buttonsHtml += `<div role="option" data-ag-click-id="${id}" data-ag-click-label="${label}">${btn.innerHTML}</div>`;
-          } else {
-            const isDestructive = /delete|remove/i.test(text);
-            const cls = isDestructive ? 'destructive' : '';
-            buttonsHtml += `<button class="${cls}" data-ag-click-id="${id}" data-ag-click-label="${label}">${text}</button>`;
-          }
-        });
-        dropdownContent.innerHTML = buttonsHtml;
+        if (data.dropdownHtml.includes('model-selector-panel') || data.dropdownHtml.includes('role="menu"')) {
+          // Render full rich Antigravity DOM with badges, pills, checkmarks and headers
+          dropdownContent.innerHTML = data.dropdownHtml;
+        } else {
+          // Options to hide from dropdown menus (e.g., Rename triggers inline sidebar edit, unusable in AG2R)
+          const HIDDEN_DROPDOWN_OPTIONS = /^rename$/i;
+          const isTypeahead = tempDiv.querySelector('[role="option"]') !== null;
+          let buttonsHtml = '';
+          allBtns.forEach(btn => {
+            const text = btn.textContent.trim();
+            if (HIDDEN_DROPDOWN_OPTIONS.test(text)) return;
+            const id = btn.dataset.agClickId;
+            const label = btn.dataset.agClickLabel || text;
+            if (isTypeahead) {
+              buttonsHtml += `<div role="option" data-ag-click-id="${id}" data-ag-click-label="${label}">${btn.innerHTML}</div>`;
+            } else {
+              const isDestructive = /delete|remove/i.test(text);
+              const cls = isDestructive ? 'destructive' : '';
+              buttonsHtml += `<button class="${cls}" data-ag-click-id="${id}" data-ag-click-label="${label}">${btn.innerHTML || text}</button>`;
+            }
+          });
+          dropdownContent.innerHTML = buttonsHtml;
+        }
         addClickProxyHandlers(dropdownContent);
         dropdownOverlay.classList.remove('hidden');
       }
     } else if (!data.dropdownHtml && !data.dialogHtml) {
-      // Only hide overlay if neither dropdown nor dialog is active
+      dropdownOverlay.classList.remove('model-picker-overlay');
       dropdownOverlay.classList.add('hidden');
     }
 
