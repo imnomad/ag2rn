@@ -1629,17 +1629,19 @@ function openQuotaDetailModal() {
   const body = document.getElementById('quota-modal-body');
   if (!modal || !body) return;
 
-  if (!_currentModelQuota) {
-    // Fetch latest quota on demand if not cached
-    fetch('/api/model-quota').then(r => r.json()).then(data => {
-      _currentModelQuota = data;
-      renderQuotaModalContent(body, data);
-    }).catch(() => {
-      body.innerHTML = '<div style="color:var(--text-muted);font-size:12px;">Quota information unavailable.</div>';
-    });
-  } else {
+  if (_currentModelQuota) {
     renderQuotaModalContent(body, _currentModelQuota);
   }
+
+  fetch('/api/model-quota').then(r => r.json()).then(data => {
+    _currentModelQuota = data;
+    renderQuotaModalContent(body, data);
+    updateModelQuotaUI(data);
+  }).catch(() => {
+    if (!_currentModelQuota) {
+      body.innerHTML = '<div style="color:var(--text-muted);font-size:12px;">Quota information unavailable.</div>';
+    }
+  });
 
   modal.classList.remove('hidden');
 }

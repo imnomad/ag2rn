@@ -762,6 +762,12 @@ export const CAPTURE_SCRIPT = `
       const clone = rootCard.cloneNode(true);
       untagAll(tagged);
       clone.querySelectorAll('style').forEach(s => s.remove());
+      queuedMessagesHtml = clone.outerHTML;
+    }
+  } catch (e) {
+    console.debug('[AG2R] Queued messages capture error:', e.message);
+  }
+
   // -- 14. Extract Model Quota --
   let modelQuota = window.__ag2r_cached_model_quota || null;
   try {
@@ -812,22 +818,15 @@ export const CAPTURE_SCRIPT = `
 
               const rows = Array.from(grp.children).filter(c => c.getAttribute('role') !== 'presentation' && !c.hasAttribute('data-orientation'));
               for (const row of rows) {
-                const text = row.textContent || '';
-                const isWeekly = text.includes('Weekly');
-                const is5h = text.includes('Five Hour') || text.includes('5-hour') || text.includes('5 Hour');
+                const rawText = row.textContent || '';
+                const isWeekly = rawText.includes('Weekly');
+                const is5h = rawText.includes('Five Hour') || rawText.includes('5-hour') || rawText.includes('5 Hour');
 
-                let percentage = 100;
-                const pctSpan = row.querySelector('.shrink-0 > span, span.text-foreground');
-                if (pctSpan && pctSpan.textContent.includes('%')) {
-                  const m = pctSpan.textContent.match(/(\d+)%/);
-                  if (m) percentage = parseInt(m[1], 10);
-                } else {
-                  const m = text.match(/(\d+)%/);
-                  if (m) percentage = parseInt(m[1], 10);
-                }
+                const pctSpan = Array.from(row.querySelectorAll('span')).find(s => (s.textContent || '').includes('%'));
+                const percentage = pctSpan ? parseInt(pctSpan.textContent.replace('%', '').trim(), 10) : 100;
 
                 let refreshText = '';
-                const refreshMatch = text.match(/fully refresh (in [^.]+)/i);
+                const refreshMatch = rawText.match(/fully refresh (in [^.]+)/i);
                 if (refreshMatch) {
                   refreshText = refreshMatch[1];
                 }
