@@ -4,19 +4,22 @@
 export function buildInjectScript(safeText, appendMode) {
   return `
 (async () => {
-  // Find the editor (Lexical or generic contenteditable)
+  // 1. Find the active editor (Lexical or generic contenteditable)
   const editorCandidates = document.querySelectorAll(
-    '[data-lexical-editor="true"], #antigravity\\\\.agentSidePanelInputBox [contenteditable="true"], [contenteditable="true"][role="textbox"], [contenteditable="true"], textarea'
+    '#antigravity\\\\.agentSidePanelInputBox [contenteditable="true"], [data-lexical-editor="true"], [contenteditable="true"][role="textbox"], [contenteditable="true"], textarea'
   );
 
-  // Filter to visible editors, take the last one (usually the input at bottom)
   let editor = null;
   for (const el of editorCandidates) {
-    if (el.offsetParent !== null || el.getClientRects().length > 0) editor = el;
+    if (el.offsetParent !== null || (el.getClientRects && el.getClientRects().length > 0)) {
+      editor = el;
+    }
   }
   if (!editor) return { ok: false, reason: 'no_editor' };
 
   editor.focus();
+
+  // 2. Clear or position cursor
   if (${appendMode}) {
     const sel = window.getSelection();
     if (sel && sel.rangeCount > 0) {
@@ -32,7 +35,10 @@ export function buildInjectScript(safeText, appendMode) {
 
   const textVal = ${safeText};
 
+  // 3. Inject text with all browser input events for Lexical/React compatibility
   let inserted = false;
+
+  // Method A: Clipboard paste event
   try {
     const dt = new DataTransfer();
     dt.setData('text/plain', textVal);
@@ -43,6 +49,7 @@ export function buildInjectScript(safeText, appendMode) {
     if (!notHandled) inserted = true;
   } catch {}
 
+  // Method B: execCommand insertText
   if (!inserted) {
     try {
       document.execCommand('insertText', false, textVal);
@@ -50,59 +57,84 @@ export function buildInjectScript(safeText, appendMode) {
     } catch {}
   }
 
-  if (!inserted && editor.tagName === 'TEXTAREA') {
+  // Method C: beforeinput / input synthetic events
+  try {
+    editor.dispatchEvent(new InputEvent('beforeinput', {
+      inputType: 'insertText',
+      data: textVal,
+      bubbles: true,
+      cancelable: true,
+    }));
+    editor.dispatchEvent(new InputEvent('input', {
+      inputType: 'insertText',
+      data: textVal,
+      bubbles: true,
+    }));
+  } catch {}
+
+  // Method D: textarea value assignment fallback
+  if (editor.tagName === 'TEXTAREA') {
     editor.value = textVal;
     editor.dispatchEvent(new Event('input', { bubbles: true }));
     editor.dispatchEvent(new Event('change', { bubbles: true }));
   }
 
-  // Brief delay for editor to process
-  await new Promise(r => setTimeout(r, 120));
+  // 4. Helper to find active Send Button (excluding cancel/stop buttons)
+  const findSendButton = () => {
+    const selectors = [
+      'button[data-tooltip-id*="input-send-button"]:not([data-tooltip-id*="cancel"])',
+      'button[data-tooltip-id*="send"]:not([data-tooltip-id*="cancel"])',
+      'button[data-testid*="send"]:not([data-testid*="cancel"])',
+      'button[aria-label*="send" i]:not([aria-label*="cancel" i])',
+      'button[aria-label*="submit" i]',
+      'button:has(svg.lucide-arrow-up)',
+      'button:has(svg.lucide-arrow-right)',
+      'button:has(svg.lucide-send)',
+    ];
+    for (const sel of selectors) {
+      try {
+        const btn = document.querySelector(sel);
+        if (btn && (btn.offsetParent !== null || btn.getClientRects().length > 0)) {
+          return btn;
+        }
+      } catch {}
+    }
+    return null;
+  };
 
-  // Find and click submit button
-  const submitSelectors = [
-    'button[data-tooltip-id*="input-send-button"]',
-    'button[data-tooltip-id="input-send-button-cancel-tooltip"]',
-    'button[data-testid="input-send-button"]',
-    'button[data-testid="send-button"]',
-    'button[aria-label*="send" i]',
-    'button[aria-label*="submit" i]',
-  ];
-
-  let submitBtn = null;
-  for (const sel of submitSelectors) {
-    submitBtn = document.querySelector(sel);
-    if (submitBtn && (submitBtn.offsetParent !== null || submitBtn.getClientRects().length > 0)) break;
-    submitBtn = null;
+  // 5. Wait for React / Lexical state to update and enable the send button
+  let sendBtn = null;
+  for (let i = 0; i < 6; i++) {
+    await new Promise(r => setTimeout(r, 60));
+    sendBtn = findSendButton();
+    if (sendBtn && !sendBtn.disabled && !sendBtn.classList.contains('pointer-events-none')) {
+      break;
+    }
   }
 
-  // Fallback: look for arrow icon button near the editor
-  if (!submitBtn) {
-    const arrow = document.querySelector('svg.lucide-arrow-right, svg.lucide-arrow-up, svg.lucide-send');
-    if (arrow) submitBtn = arrow.closest('button');
+  // 6. Trigger Submission
+  if (sendBtn) {
+    const opts = { bubbles: true, cancelable: true };
+    sendBtn.dispatchEvent(new PointerEvent('pointerdown', opts));
+    sendBtn.dispatchEvent(new MouseEvent('mousedown', opts));
+    sendBtn.dispatchEvent(new PointerEvent('pointerup', opts));
+    sendBtn.dispatchEvent(new MouseEvent('mouseup', opts));
+    sendBtn.click();
+    return { ok: true, method: 'button_click' };
   }
 
-  // Fallback: form submit or sibling button
-  if (!submitBtn) {
-    const form = editor.closest('form');
-    if (form) submitBtn = form.querySelector('button[type="submit"], button:last-of-type');
-  }
-  if (!submitBtn) {
-    const parent = editor.parentElement;
-    if (parent) submitBtn = parent.querySelector('button');
-  }
+  // Fallback: Dispatch Enter key event directly to the editor
+  const enterDown = new KeyboardEvent('keydown', {
+    key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true, cancelable: true,
+  });
+  editor.dispatchEvent(enterDown);
 
-  if (submitBtn) {
-    submitBtn.click();
-    return { ok: true, method: 'button' };
-  }
-
-  // Last resort: dispatch Enter key
-  const enterEvent = new KeyboardEvent('keydown', {
+  const enterUp = new KeyboardEvent('keyup', {
     key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true,
   });
-  editor.dispatchEvent(enterEvent);
-  return { ok: true, method: 'enter' };
+  editor.dispatchEvent(enterUp);
+
+  return { ok: true, method: 'enter_keypress' };
 })()
 `;
 }

@@ -1520,7 +1520,12 @@ function createVoiceInput(inputEl, btnEl) {
     }
   }
 
-  btnEl.addEventListener('click', () => {
+  inputEl.addEventListener('keydown', () => {
+    if (isRecording) stopRecording();
+  });
+
+  btnEl.addEventListener('click', (e) => {
+    e.stopPropagation();
     if (isRecording) {
       stopRecording();
     } else {
