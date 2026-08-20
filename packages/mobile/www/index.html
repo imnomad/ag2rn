@@ -125,7 +125,7 @@
               <button id="attach-btn" class="attach-btn" type="button" aria-label="Add context">
                 <span class="material-symbols-rounded">add</span>
               </button>
-              <button id="model-chip" class="model-chip" type="button" data-ag-click-id="model:0" data-ag-click-label="">
+              <button id="model-chip" class="model-chip" type="button" aria-label="Select model">
                 <span class="model-chip-text"></span>
                 <span class="material-symbols-rounded model-chip-chevron">expand_more</span>
               </button>
@@ -275,20 +275,26 @@
       </div>
     </div>
 
-    <!-- Model Quota Detail Modal -->
-    <div id="quota-detail-modal" class="quota-modal hidden">
-      <div id="quota-modal-backdrop" class="dropdown-backdrop"></div>
-      <div class="quota-modal-card">
-        <div class="quota-modal-header">
-          <div class="quota-modal-title-row">
-            <span class="material-symbols-rounded quota-modal-icon">speed</span>
-            <span class="quota-modal-title">Model Quota & Limits</span>
+    <!-- Native Model Picker Modal (100% Silent & Touch-Friendly) -->
+    <div id="native-model-picker-modal" class="model-picker-modal hidden">
+      <div id="model-picker-backdrop" class="dropdown-backdrop"></div>
+      <div class="model-picker-card">
+        <div class="model-picker-header">
+          <div class="model-picker-title-row">
+            <span class="material-symbols-rounded model-picker-icon">neurology</span>
+            <span class="model-picker-title">Select Model</span>
           </div>
-          <button id="quota-modal-close" class="quota-modal-close-btn" type="button" aria-label="Close">
+          <button id="model-picker-close" class="quota-modal-close-btn" type="button" aria-label="Close">
             <span class="material-symbols-rounded">close</span>
           </button>
         </div>
-        <div id="quota-modal-body" class="quota-modal-body"></div>
+        <div id="model-picker-body" class="model-picker-body"></div>
+        <div class="model-picker-footer">
+          <button id="model-picker-view-quota" class="model-picker-quota-btn" type="button">
+            <span class="material-symbols-rounded">speed</span>
+            <span>View Quota & Limits</span>
+          </button>
+        </div>
       </div>
     </div>
 

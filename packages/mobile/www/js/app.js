@@ -583,6 +583,11 @@ async function loadSnapshot() {
       updateModelQuotaUI(data.modelQuota);
     }
 
+    // Update available models for native silent model picker
+    if (data.availableModels) {
+      updateAvailableModels(data.availableModels);
+    }
+
     // Render left sidebar with AG's captured content (always, even when skipping chat)
     isRendering = true;
     renderSidebar(leftSidebarContent, data.leftSidebarHtml);
@@ -1727,7 +1732,152 @@ function renderQuotaModalContent(container, quota) {
   `;
 }
 
+// ─────────────────────────────────────────────
+// Native Model Picker Modal (Silent & Touch-Optimized)
+// ─────────────────────────────────────────────
+let cachedAvailableModels = [
+  { raw: 'Gemini 3.7 Flash (High)', label: 'Gemini 3.7 Flash', effort: 'High', speed: 'Fast', value: 'gemini-3.7-flash-high', family: 'gemini' },
+  { raw: 'Gemini 3.7 Flash (Medium)', label: 'Gemini 3.7 Flash', effort: 'Medium', speed: 'Fast', value: 'gemini-3.7-flash-medium', family: 'gemini' },
+  { raw: 'Gemini 3.7 Flash (Low)', label: 'Gemini 3.7 Flash', effort: 'Low', speed: 'Fast', value: 'gemini-3.7-flash-low', family: 'gemini' },
+  { raw: 'Gemini 3.6 Flash (High)', label: 'Gemini 3.6 Flash', effort: 'High', speed: 'Fast', value: 'gemini-3.6-flash-high', family: 'gemini' },
+  { raw: 'Gemini 3.6 Flash (Medium)', label: 'Gemini 3.6 Flash', effort: 'Medium', speed: 'Fast', value: 'gemini-3.6-flash-medium', family: 'gemini' },
+  { raw: 'Gemini 3.6 Flash (Low)', label: 'Gemini 3.6 Flash', effort: 'Low', speed: 'Fast', value: 'gemini-3.6-flash-low', family: 'gemini' },
+  { raw: 'Gemini 3.5 Flash (High)', label: 'Gemini 3.5 Flash', effort: 'High', speed: 'Fast', value: 'gemini-3.5-flash-high', family: 'gemini' },
+  { raw: 'Gemini 3.5 Flash (Medium)', label: 'Gemini 3.5 Flash', effort: 'Medium', speed: 'Fast', value: 'gemini-3.5-flash-medium', family: 'gemini' },
+  { raw: 'Gemini 3.5 Flash (Low)', label: 'Gemini 3.5 Flash', effort: 'Low', speed: 'Fast', value: 'gemini-3.5-flash-low', family: 'gemini' },
+  { raw: 'Gemini 3.1 Pro (High)', label: 'Gemini 3.1 Pro', effort: 'High', speed: '', value: 'gemini-3.1-pro-high', family: 'gemini' },
+  { raw: 'Gemini 3.1 Pro (Low)', label: 'Gemini 3.1 Pro', effort: 'Low', speed: '', value: 'gemini-3.1-pro-low', family: 'gemini' },
+  { raw: 'Claude Sonnet 4.6 (Thinking)', label: 'Claude Sonnet 4.6', effort: 'Thinking', speed: '', value: 'claude-sonnet-4.6', family: 'claudeGpt' },
+  { raw: 'Claude Opus 4.6 (Thinking)', label: 'Claude Opus 4.6', effort: 'Thinking', speed: '', value: 'claude-opus-4.6', family: 'claudeGpt' },
+  { raw: 'GPT-OSS 120B (Medium)', label: 'GPT-OSS 120B', effort: 'Medium', speed: '', value: 'gpt-oss-120b', family: 'claudeGpt' },
+];
+
+function updateAvailableModels(models) {
+  if (Array.isArray(models) && models.length > 0) {
+    cachedAvailableModels = models.map(m => {
+      const raw = m.label || m.name || m.value || '';
+      let label = raw;
+      let effort = '';
+      let speed = raw.toLowerCase().includes('flash') ? 'Fast' : '';
+      let family = (raw.toLowerCase().includes('claude') || raw.toLowerCase().includes('gpt')) ? 'claudeGpt' : 'gemini';
+
+      // Parse effort e.g. "Gemini 3.7 Flash (High)"
+      const effortMatch = raw.match(/\((High|Medium|Low|Thinking)\)/i);
+      if (effortMatch) {
+        effort = effortMatch[1];
+        label = raw.replace(/\s*\([^)]+\)/, '').trim();
+      }
+
+      return {
+        raw,
+        label,
+        effort,
+        speed,
+        value: m.value || m.modelAlias || raw,
+        family
+      };
+    });
+  }
+}
+
+function openModelPickerModal() {
+  const modal = document.getElementById('native-model-picker-modal');
+  const body = document.getElementById('model-picker-body');
+  if (!modal || !body) return;
+
+  const currentChipText = (document.querySelector('#model-chip .model-chip-text')?.textContent || '').trim();
+
+  // Group models by family
+  const geminiModels = cachedAvailableModels.filter(m => m.family === 'gemini');
+  const claudeGptModels = cachedAvailableModels.filter(m => m.family === 'claudeGpt');
+
+  function renderGroupHtml(title, items) {
+    if (!items || items.length === 0) return '';
+    let html = `<div class="model-picker-group"><div class="model-picker-group-title">${title}</div>`;
+    items.forEach(m => {
+      const matchText = `${m.label} ${m.effort}`.trim();
+      const isActive = currentChipText && (
+        currentChipText.toLowerCase() === matchText.toLowerCase() ||
+        (m.raw && currentChipText.toLowerCase() === m.raw.toLowerCase()) ||
+        currentChipText.toLowerCase().replace(/\s+/g, '') === matchText.toLowerCase().replace(/\s+/g, '')
+      );
+      const activeCls = isActive ? 'active' : '';
+
+      html += `
+        <button class="model-picker-item ${activeCls}" type="button" data-model-value="${m.value}" data-model-label="${m.raw || matchText}">
+          <div class="model-picker-item-left">
+            <span class="model-picker-name">${m.label}</span>
+            ${m.effort ? `<span class="model-picker-effort">${m.effort}</span>` : ''}
+          </div>
+          <div class="model-picker-item-right">
+            ${m.speed ? `<span class="model-picker-speed-pill"><span class="material-symbols-rounded">speed</span>${m.speed}</span>` : ''}
+            <span class="material-symbols-rounded model-picker-check">check</span>
+          </div>
+        </button>
+      `;
+    });
+    html += `</div>`;
+    return html;
+  }
+
+  body.innerHTML = `
+    ${renderGroupHtml('Gemini Models', geminiModels)}
+    ${renderGroupHtml('Claude & GPT Models', claudeGptModels)}
+  `;
+
+  // Attach click handlers to items
+  body.querySelectorAll('.model-picker-item').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const modelVal = btn.dataset.modelValue;
+      const modelLbl = btn.dataset.modelLabel;
+      await selectModelSilently(modelVal, modelLbl);
+    });
+  });
+
+  modal.classList.remove('hidden');
+}
+
+function closeModelPickerModal() {
+  document.getElementById('native-model-picker-modal')?.classList.add('hidden');
+}
+
+async function selectModelSilently(modelValue, modelLabel) {
+  closeModelPickerModal();
+
+  // Optimistically update UI chip
+  const chipText = document.querySelector('#model-chip .model-chip-text');
+  if (chipText && modelLabel) {
+    chipText.textContent = modelLabel.replace(/\s*\((High|Medium|Low|Thinking)\)/i, (m, g) => ` ${g}`).trim();
+  }
+
+  try {
+    const res = await fetch('/api/select-model', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ modelValue, modelLabel })
+    });
+    const data = await res.json();
+    if (data.ok && data.model) {
+      if (chipText) {
+        chipText.textContent = data.model;
+      }
+      if (window.__ag2r_latest_quota) {
+        updateModelQuotaUI(window.__ag2r_latest_quota);
+      }
+    }
+  } catch (err) {
+    console.debug('[ModelPicker] select error:', err.message);
+  }
+}
+
 // Wire modal triggers and dismissals
+document.getElementById('model-chip')?.addEventListener('click', openModelPickerModal);
+document.getElementById('model-picker-close')?.addEventListener('click', closeModelPickerModal);
+document.getElementById('model-picker-backdrop')?.addEventListener('click', closeModelPickerModal);
+document.getElementById('model-picker-view-quota')?.addEventListener('click', () => {
+  closeModelPickerModal();
+  openQuotaDetailModal();
+});
 document.getElementById('quota-badge-5h')?.addEventListener('click', openQuotaDetailModal);
 document.getElementById('quota-badge-weekly')?.addEventListener('click', openQuotaDetailModal);
 document.getElementById('quota-modal-close')?.addEventListener('click', closeQuotaDetailModal);

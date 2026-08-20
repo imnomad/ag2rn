@@ -1448,6 +1448,75 @@ app.get('/api/model-quota', async (req, res) => {
   });
 });
 
+// --- Select Model Endpoint (Direct React Fiber Dispatch - 100% Silent) ---
+app.post('/api/select-model', async (req, res) => {
+  const { modelValue, modelLabel } = req.body;
+  if (!modelValue && !modelLabel) {
+    return res.status(400).json({ ok: false, error: 'modelValue or modelLabel required' });
+  }
+
+  if (!cdpClient) {
+    return res.status(503).json({ ok: false, error: 'CDP not connected' });
+  }
+
+  try {
+    const result = await cdpClient.Runtime.evaluate({
+      expression: `(() => {
+        const trigger = document.querySelector('[data-testid="model-selector-trigger"]');
+        if (!trigger) return { ok: false, error: 'no trigger' };
+
+        const fiberKey = Object.keys(trigger).find(k => k.startsWith('__reactFiber') || k.startsWith('__reactInternalInstance'));
+        let cur = fiberKey ? trigger[fiberKey] : null;
+
+        let modelSelectorProps = null;
+        let depth = 0;
+        while (cur && depth < 60) {
+          if (cur.memoizedProps && typeof cur.memoizedProps.setSelectedModel === 'function') {
+            modelSelectorProps = cur.memoizedProps;
+            break;
+          }
+          cur = cur.return;
+          depth++;
+        }
+
+        if (!modelSelectorProps || !Array.isArray(modelSelectorProps.modelOptions)) {
+          return { ok: false, error: 'modelSelectorProps not found' };
+        }
+
+        const target = modelSelectorProps.modelOptions.find(m => {
+          const val = (m.value || m.modelAlias || '').toLowerCase();
+          const lbl = (m.label || m.name || '').toLowerCase();
+          const qVal = ${JSON.stringify((modelValue || '').toLowerCase())};
+          const qLbl = ${JSON.stringify((modelLabel || '').toLowerCase())};
+          return (qVal && val === qVal) || (qLbl && lbl === qLbl) || (qLbl && lbl.includes(qLbl)) || (qVal && val.includes(qVal));
+        });
+
+        if (!target) {
+          return { ok: false, error: 'model not found in options' };
+        }
+
+        modelSelectorProps.setSelectedModel(target);
+        return { ok: true, selected: target.label || target.value };
+      })()`,
+      returnByValue: true
+    });
+
+    const val = result?.result?.value;
+    if (val && val.ok) {
+      log('Model', `Switched model to ${val.selected} (silent)`);
+      if (cachedSnapshot) {
+        cachedSnapshot.modelName = val.selected;
+      }
+      res.json({ ok: true, model: val.selected });
+    } else {
+      res.status(404).json({ ok: false, error: val?.error || 'failed to switch model' });
+    }
+  } catch (err) {
+    log('Model', 'Error selecting model:', err.message);
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
 // --- System & Network Status Endpoint ---
 app.get('/api/status', (req, res) => {
   const agStatus = isAntigravityRunning();

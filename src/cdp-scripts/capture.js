@@ -771,6 +771,43 @@ export const CAPTURE_SCRIPT = `
   // -- 14. Model Quota (Pure read from memory cache — NEVER triggers clicks or opens dropdowns) --
   let modelQuota = window.__ag2r_cached_model_quota || null;
 
-  return { html, css, agentRunning, scrollInfo, leftSidebarHtml, sidebarAttentionItems, sidebarSignature, isSidebarOpen, isNewSessionPage, isInputBoxHidden, isSubagentView, parentConversationName, subagentInfoHtml, dropdownHtml, dialogHtml, settingsHtml, activeArtifactUri, activeFileUri, askQuestionHtml, permissionHtml, environmentName, branchName, modelName, btwHtml, queuedMessagesHtml, modelQuota };
+  // -- 15. Available Models (Pure read from React fiber — NEVER triggers clicks or opens dropdowns) --
+  let availableModels = null;
+  let activeSelectedModel = null;
+  try {
+    const trigger = document.querySelector('[data-testid="model-selector-trigger"]');
+    if (trigger) {
+      const fiberKey = Object.keys(trigger).find(k => k.startsWith('__reactFiber') || k.startsWith('__reactInternalInstance'));
+      let cur = fiberKey ? trigger[fiberKey] : null;
+      let depth = 0;
+      while (cur && depth < 60) {
+        if (cur.memoizedProps && Array.isArray(cur.memoizedProps.modelOptions)) {
+          const opts = cur.memoizedProps.modelOptions;
+          availableModels = opts.map(m => ({
+            label: m.label || m.name || m.title || '',
+            value: m.value || m.modelAlias || m.id || '',
+            modelAlias: m.modelAlias || '',
+            tagTitle: m.tagTitle || '',
+            tagDescription: m.tagDescription || '',
+            disabled: !!m.disabled
+          }));
+          if (cur.memoizedProps.selectedModel) {
+            activeSelectedModel = {
+              label: cur.memoizedProps.selectedModel.label || '',
+              value: cur.memoizedProps.selectedModel.value || '',
+              modelAlias: cur.memoizedProps.selectedModel.modelAlias || ''
+            };
+          }
+          break;
+        }
+        cur = cur.return;
+        depth++;
+      }
+    }
+  } catch (e) {
+    console.debug('[AG2R] Available models capture error:', e.message);
+  }
+
+  return { html, css, agentRunning, scrollInfo, leftSidebarHtml, sidebarAttentionItems, sidebarSignature, isSidebarOpen, isNewSessionPage, isInputBoxHidden, isSubagentView, parentConversationName, subagentInfoHtml, dropdownHtml, dialogHtml, settingsHtml, activeArtifactUri, activeFileUri, askQuestionHtml, permissionHtml, environmentName, branchName, modelName, btwHtml, queuedMessagesHtml, modelQuota, availableModels, activeSelectedModel };
 })()
 `;
