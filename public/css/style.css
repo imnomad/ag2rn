@@ -987,7 +987,7 @@ body {
   display: flex;
   flex-direction: column;
   gap: 6px;
-  max-height: 180px;
+  max-height: 240px;
   overflow-y: auto;
   font-size: 0.85rem;
 }
@@ -996,39 +996,49 @@ body {
   display: none !important;
 }
 
-.queued-messages-container > div,
-.queued-messages-container [class*="rounded"] {
+.queued-messages-container > div {
   background: #18181b !important;
-  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
   border-radius: 12px !important;
   padding: 10px 14px !important;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3) !important;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4) !important;
 }
 
-.queued-messages-container [class*="flex"] {
-  gap: 6px;
+.queued-messages-container svg {
+  width: 15px !important;
+  height: 15px !important;
+  stroke: currentColor !important;
+  display: inline-block !important;
+  flex-shrink: 0 !important;
+}
+
+.queued-messages-container button {
+  background: transparent !important;
+  border: none !important;
+  color: #9ca3af !important;
+  cursor: pointer !important;
+  padding: 3px 5px !important;
+  border-radius: 6px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  min-width: 22px !important;
+  min-height: 22px !important;
+  transition: color 0.15s, background 0.15s !important;
+}
+
+.queued-messages-container button:hover,
+.queued-messages-container button:active {
+  color: #f3f4f6 !important;
+  background: rgba(255, 255, 255, 0.12) !important;
 }
 
 .queued-messages-container p,
 .queued-messages-container span,
 .queued-messages-container div {
-  line-height: 1.45 !important;
-}
-
-.queued-messages-container button {
-  background: transparent;
-  border: none;
-  color: #9ca3af;
-  cursor: pointer;
-  padding: 4px;
-  border-radius: 6px;
-  transition: color 0.15s, background 0.15s;
-}
-
-.queued-messages-container button:hover,
-.queued-messages-container button:active {
-  color: #f3f4f6;
-  background: rgba(255, 255, 255, 0.08);
+  line-height: 1.4 !important;
+  white-space: normal !important;
+  word-break: break-word !important;
 }
 
 /* ── Macro Chip Strip (slash commands above input) ── */
