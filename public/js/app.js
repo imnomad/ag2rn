@@ -278,11 +278,15 @@ window.addEventListener('unhandledrejection', (e) => {
 let wsReconnectDelay = 1000;
 
 function connectWebSocket() {
-  const remoteServer = localStorage.getItem('ag2rn_server_url');
+  let remoteServer = localStorage.getItem('ag2rn_server_url');
+  if (!remoteServer && window.Capacitor) {
+    remoteServer = 'http://10.0.2.2:3821';
+    localStorage.setItem('ag2rn_server_url', remoteServer);
+  }
   let wsUrl = '';
   if (remoteServer) {
     const wsBase = remoteServer.replace(/^http:/i, 'ws:').replace(/^https:/i, 'wss:');
-    wsUrl = `${wsBase}/ws`;
+    wsUrl = wsBase;
   } else {
     const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
     wsUrl = `${protocol}//${location.host}`;
@@ -295,8 +299,8 @@ function connectWebSocket() {
     debugLog('ws-open');
     wsReconnectDelay = 1000;
     updateConnectionStatus('connected');
-    // Tell server whether app is in foreground
     sendVisibility();
+    loadSnapshot();
   };
 
   ws.onmessage = (event) => {
