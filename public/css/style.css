@@ -1395,36 +1395,40 @@ body {
 
 /* ── Model Chip ── */
 .model-chip {
-  display: flex;
+  display: flex !important;
   align-items: center;
-  gap: 2px;
-  padding: 2px 6px;
+  gap: 4px;
+  padding: 4px 8px;
   border-radius: 6px;
   border: none;
   background: transparent;
-  color: var(--text-muted);
-  font-size: 12px;
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 500;
   font-family: var(--font-sans);
   cursor: pointer;
   transition: color 0.15s, background 0.15s;
   white-space: nowrap;
-  max-width: 220px;
+  max-width: 240px;
   overflow: hidden;
+  min-height: 28px;
+  user-select: none;
 }
 
 .model-chip:active {
   background: var(--bg-hover);
-  color: var(--text-primary);
+  color: #ffffff;
 }
 
 .model-chip-text {
   overflow: hidden;
   text-overflow: ellipsis;
+  color: #e4e4e7;
 }
 
 .model-chip-chevron {
-  font-size: 14px;
-  opacity: 0.7;
+  font-size: 16px;
+  color: #a1a1aa;
   flex-shrink: 0;
 }
 

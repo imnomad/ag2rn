@@ -576,7 +576,10 @@ async function loadSnapshot() {
     }
 
     // Update model chip in input bar from server-extracted name (existing conversations)
-    updateModelChip(data.modelName);
+    const activeModel = data.activeSelectedModel?.label || data.modelName;
+    if (activeModel) {
+      updateModelChip(activeModel);
+    }
 
     // Update model quota circular progress rings if available
     if (data.modelQuota) {
@@ -1605,6 +1608,8 @@ const stopMainMic = createVoiceInput(messageInput, micBtn);
 // Model Chip (existing conversation input bar)
 // ─────────────────────────────────────────────
 function updateModelChip(modelName) {
+  const chip = document.getElementById('model-chip');
+  if (chip) chip.style.display = 'flex';
   const chipText = document.querySelector('#model-chip .model-chip-text');
   if (chipText && modelName) {
     chipText.textContent = modelName;
