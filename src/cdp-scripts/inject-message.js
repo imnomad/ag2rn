@@ -4,7 +4,7 @@
 export function buildInjectScript(safeText, appendMode) {
   return `
 (async () => {
-  // 1. Find the active editor (Lexical or generic contenteditable)
+  // 1. Find active editor
   const editorCandidates = document.querySelectorAll(
     '#antigravity\\\\.agentSidePanelInputBox [contenteditable="true"], [data-lexical-editor="true"], [contenteditable="true"][role="textbox"], [contenteditable="true"], textarea'
   );
@@ -19,76 +19,53 @@ export function buildInjectScript(safeText, appendMode) {
 
   editor.focus();
 
-  // 2. Clear or position cursor
-  if (${appendMode}) {
+  // 2. Clear previous content if not appending
+  if (!${appendMode}) {
+    const range = document.createRange();
+    range.selectNodeContents(editor);
     const sel = window.getSelection();
-    if (sel && sel.rangeCount > 0) {
-      sel.collapseToEnd();
-    }
-  } else {
-    const sel = window.getSelection();
-    if (sel && sel.selectAllChildren) {
-      try { sel.selectAllChildren(editor); } catch {}
+    if (sel) {
+      sel.removeAllRanges();
+      sel.addRange(range);
     }
     try { document.execCommand('delete', false, null); } catch {}
+    if (editor.textContent && editor.textContent.trim()) {
+      editor.textContent = '';
+    }
   }
 
   const textVal = ${safeText};
 
-  // 3. Inject text with all browser input events for Lexical/React compatibility
+  // 3. Clean single insertion via execCommand
+  editor.focus();
   let inserted = false;
-
-  // Method A: Clipboard paste event
   try {
-    const dt = new DataTransfer();
-    dt.setData('text/plain', textVal);
-    const pasteEvent = new ClipboardEvent('paste', {
-      clipboardData: dt, bubbles: true, cancelable: true,
-    });
-    const notHandled = editor.dispatchEvent(pasteEvent);
-    if (!notHandled) inserted = true;
+    inserted = document.execCommand('insertText', false, textVal);
   } catch {}
 
-  // Method B: execCommand insertText
-  if (!inserted) {
-    try {
-      document.execCommand('insertText', false, textVal);
-      inserted = true;
-    } catch {}
-  }
-
-  // Method C: beforeinput / input synthetic events
-  try {
-    editor.dispatchEvent(new InputEvent('beforeinput', {
-      inputType: 'insertText',
-      data: textVal,
-      bubbles: true,
-      cancelable: true,
-    }));
-    editor.dispatchEvent(new InputEvent('input', {
-      inputType: 'insertText',
-      data: textVal,
-      bubbles: true,
-    }));
-  } catch {}
-
-  // Method D: textarea value assignment fallback
-  if (editor.tagName === 'TEXTAREA') {
+  if (!inserted && editor.tagName === 'TEXTAREA') {
     editor.value = textVal;
     editor.dispatchEvent(new Event('input', { bubbles: true }));
     editor.dispatchEvent(new Event('change', { bubbles: true }));
   }
 
-  // 4. Helper to find active Send Button (excluding cancel/stop buttons)
+  // 4. Collapse selection so text doesn't stay highlighted in blue
+  const sel = window.getSelection();
+  if (sel) {
+    try { sel.collapseToEnd(); } catch {}
+  }
+
+  // Brief delay for React/Lexical state cycle
+  await new Promise(r => setTimeout(r, 120));
+
+  // 5. Find Send Button in input box / toolbar
   const findSendButton = () => {
     const selectors = [
       'button[data-tooltip-id*="input-send-button"]:not([data-tooltip-id*="cancel"])',
-      'button[data-tooltip-id*="send"]:not([data-tooltip-id*="cancel"])',
       'button[data-testid*="send"]:not([data-testid*="cancel"])',
       'button[aria-label*="send" i]:not([aria-label*="cancel" i])',
-      'button[aria-label*="submit" i]',
-      'button:has(svg.lucide-arrow-up)',
       'button:has(svg.lucide-arrow-right)',
+      'button:has(svg.lucide-arrow-up)',
       'button:has(svg.lucide-send)',
     ];
     for (const sel of selectors) {
@@ -99,42 +76,38 @@ export function buildInjectScript(safeText, appendMode) {
         }
       } catch {}
     }
+    const parent = editor.closest('#antigravity\\\\.agentSidePanelInputBox') || editor.parentElement;
+    if (parent) {
+      const btns = Array.from(parent.querySelectorAll('button'));
+      return btns[btns.length - 1] || null;
+    }
     return null;
   };
 
-  // 5. Wait for React / Lexical state to update and enable the send button
-  let sendBtn = null;
-  for (let i = 0; i < 6; i++) {
-    await new Promise(r => setTimeout(r, 60));
-    sendBtn = findSendButton();
-    if (sendBtn && !sendBtn.disabled && !sendBtn.classList.contains('pointer-events-none')) {
-      break;
-    }
+  const btn = findSendButton();
+  if (btn) {
+    const rect = btn.getBoundingClientRect();
+    const x = rect.left + rect.width / 2;
+    const y = rect.top + rect.height / 2;
+    const hit = document.elementFromPoint(x, y) || btn;
+    const opts = { bubbles: true, cancelable: true, clientX: x, clientY: y, view: window };
+    hit.dispatchEvent(new PointerEvent('pointerdown', opts));
+    hit.dispatchEvent(new MouseEvent('mousedown', opts));
+    hit.dispatchEvent(new PointerEvent('pointerup', opts));
+    hit.dispatchEvent(new MouseEvent('mouseup', opts));
+    hit.click();
+    if (typeof btn.click === 'function') btn.click();
   }
 
-  // 6. Trigger Submission
-  if (sendBtn) {
-    const opts = { bubbles: true, cancelable: true };
-    sendBtn.dispatchEvent(new PointerEvent('pointerdown', opts));
-    sendBtn.dispatchEvent(new MouseEvent('mousedown', opts));
-    sendBtn.dispatchEvent(new PointerEvent('pointerup', opts));
-    sendBtn.dispatchEvent(new MouseEvent('mouseup', opts));
-    sendBtn.click();
-    return { ok: true, method: 'button_click' };
-  }
+  // 6. Also dispatch native Enter event directly to editor
+  editor.dispatchEvent(new KeyboardEvent('keydown', {
+    key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true, cancelable: true, view: window
+  }));
+  editor.dispatchEvent(new KeyboardEvent('keyup', {
+    key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true, view: window
+  }));
 
-  // Fallback: Dispatch Enter key event directly to the editor
-  const enterDown = new KeyboardEvent('keydown', {
-    key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true, cancelable: true,
-  });
-  editor.dispatchEvent(enterDown);
-
-  const enterUp = new KeyboardEvent('keyup', {
-    key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true,
-  });
-  editor.dispatchEvent(enterUp);
-
-  return { ok: true, method: 'enter_keypress' };
+  return { ok: true, method: btn ? 'button_and_enter' : 'enter' };
 })()
 `;
 }

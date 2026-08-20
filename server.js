@@ -688,13 +688,17 @@ async function injectMessage(text, opts = {}) {
   const appendMode = opts.appendMode || false;
   const script = buildInjectScript(safeText, appendMode);
 
-  const ctxId = await findEditorContext();
-  if (!ctxId) {
-    log('Inject', 'No specific context probe matched, attempting evaluateInBrowser across contexts...');
-    return await evaluateInBrowser(script);
+  let ctxId = await findEditorContext();
+  if (!ctxId && cdpContexts.length > 0) {
+    const defaultCtx = cdpContexts.find(c => c.auxData?.isDefault);
+    ctxId = defaultCtx ? defaultCtx.id : cdpContexts[0].id;
+    log('Inject', `Using fallback context ID ${ctxId}`);
   }
 
-  return await evaluateInContext(ctxId, script);
+  if (ctxId) {
+    return await evaluateInContext(ctxId, script);
+  }
+  return await evaluateInBrowser(script);
 }
 
 // Poll AG's editor until it contains image content (img, decorator nodes).
