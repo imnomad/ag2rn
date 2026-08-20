@@ -202,6 +202,41 @@ export const CAPTURE_SCRIPT = `
 
     const leftRoot = findLeftSidebar();
     if (leftRoot) {
+      // ── Expand Antigravity's virtualized conversation list to render ALL items ──
+      try {
+        const convoList = leftRoot.querySelector('[data-testid="conversation-list-sidebar"]');
+        if (convoList && !convoList.__ag2rVirtualExpanded) {
+          const fiberKey = Object.keys(convoList).find(k => k.startsWith('__reactFiber') || k.startsWith('__reactInternalInstance'));
+          let cur = fiberKey ? convoList[fiberKey] : null;
+          let virtualizer = null;
+          for (let i = 0; i < 20 && cur; i++) {
+            if (cur.memoizedState) {
+              let s = cur.memoizedState;
+              while (s) {
+                if (s.memoizedState && s.memoizedState.options && typeof s.memoizedState.getVirtualItems === 'function') {
+                  virtualizer = s.memoizedState;
+                  break;
+                }
+                s = s.next;
+              }
+            }
+            if (virtualizer) break;
+            cur = cur.return;
+          }
+          if (virtualizer) {
+            virtualizer.calculateRange = function() {
+              const count = this.options.count || 0;
+              return {
+                startIndex: 0,
+                endIndex: Math.max(0, count - 1)
+              };
+            };
+            convoList.dispatchEvent(new Event('scroll', { bubbles: true }));
+            convoList.__ag2rVirtualExpanded = true;
+          }
+        }
+      } catch (e) {}
+
       const leftTagged = tagInteractives(leftRoot, 'left', true, true);
       const leftClone = leftRoot.cloneNode(true);
       untagAll(leftTagged);
