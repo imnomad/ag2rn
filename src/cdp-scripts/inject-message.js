@@ -4,7 +4,7 @@
 export function buildInjectScript(safeText, appendMode) {
   return `
 (async () => {
-  // 1. Find active editor
+  // 1. Find active editor element
   const editorCandidates = document.querySelectorAll(
     '#antigravity\\\\.agentSidePanelInputBox [contenteditable="true"], [data-lexical-editor="true"], [contenteditable="true"][role="textbox"], [contenteditable="true"], textarea'
   );
@@ -19,7 +19,7 @@ export function buildInjectScript(safeText, appendMode) {
 
   editor.focus();
 
-  // 2. Clear previous content if not appending
+  // 2. Clear existing content if not in append mode
   if (!${appendMode}) {
     const range = document.createRange();
     range.selectNodeContents(editor);
@@ -36,52 +36,85 @@ export function buildInjectScript(safeText, appendMode) {
 
   const textVal = ${safeText};
 
-  // 3. Clean single insertion via execCommand
+  // 3. Inject text with full Lexical event lifecycle
   editor.focus();
-  let inserted = false;
+
+  // Dispatch beforeinput (Lexical's primary input listener)
   try {
-    inserted = document.execCommand('insertText', false, textVal);
+    const beforeInputEv = new InputEvent('beforeinput', {
+      inputType: 'insertText',
+      data: textVal,
+      bubbles: true,
+      cancelable: true,
+      composed: true,
+    });
+    editor.dispatchEvent(beforeInputEv);
   } catch {}
 
-  if (!inserted && editor.tagName === 'TEXTAREA') {
+  // Fallback / complement: execCommand insertText
+  try {
+    document.execCommand('insertText', false, textVal);
+  } catch {}
+
+  // Dispatch input event
+  try {
+    const inputEv = new InputEvent('input', {
+      inputType: 'insertText',
+      data: textVal,
+      bubbles: true,
+      composed: true,
+    });
+    editor.dispatchEvent(inputEv);
+  } catch {}
+
+  if (editor.tagName === 'TEXTAREA') {
     editor.value = textVal;
     editor.dispatchEvent(new Event('input', { bubbles: true }));
     editor.dispatchEvent(new Event('change', { bubbles: true }));
   }
 
-  // 4. Collapse selection to end
+  // Collapse selection to end
   const sel = window.getSelection();
   if (sel) {
     try { sel.collapseToEnd(); } catch {}
   }
 
-  // Brief delay for React/Lexical state cycle
-  await new Promise(r => setTimeout(r, 100));
+  // Wait 120ms for Lexical/React internal state reconciliation
+  await new Promise(r => setTimeout(r, 120));
 
-  // 5. Find Send Button in input box / toolbar
+  // 4. Locate Send Button
   const findSendButton = () => {
+    // Check inside the input box container first
+    const container = editor.closest('#antigravity\\\\.agentSidePanelInputBox') || editor.parentElement?.parentElement;
+    if (container) {
+      const buttons = Array.from(container.querySelectorAll('button'));
+      const activeBtn = buttons.find(b => {
+        const isCancel = (b.getAttribute('data-tooltip-id') || '').includes('cancel');
+        const hasSvg = b.querySelector('svg');
+        return hasSvg && !isCancel && (b.offsetParent !== null || b.getClientRects().length > 0);
+      });
+      if (activeBtn) return activeBtn;
+      if (buttons.length > 0) return buttons[buttons.length - 1];
+    }
+
+    // Global selector fallback
     const selectors = [
       'button[data-tooltip-id*="input-send-button"]:not([data-tooltip-id*="cancel"])',
       'button[data-testid*="send"]:not([data-testid*="cancel"])',
       'button[aria-label*="send" i]:not([aria-label*="cancel" i])',
-      'button:has(svg.lucide-arrow-right)',
-      'button:has(svg.lucide-arrow-up)',
-      'button:has(svg.lucide-send)',
     ];
     for (const sel of selectors) {
       try {
         const b = document.querySelector(sel);
-        if (b && (b.offsetParent !== null || b.getClientRects().length > 0)) {
-          return b;
-        }
+        if (b && (b.offsetParent !== null || b.getClientRects().length > 0)) return b;
       } catch {}
     }
-    const parent = editor.closest('#antigravity\\\\.agentSidePanelInputBox') || editor.parentElement;
-    if (parent) {
-      const btns = Array.from(parent.querySelectorAll('button'));
-      return btns[btns.length - 1] || null;
-    }
-    return null;
+
+    const allButtons = Array.from(document.querySelectorAll('button'));
+    return allButtons.find(b => {
+      const svg = b.querySelector('svg');
+      return svg && (svg.classList.contains('lucide-arrow-right') || svg.classList.contains('lucide-arrow-up') || svg.classList.contains('lucide-send'));
+    }) || null;
   };
 
   let btnX = null;
@@ -101,13 +134,16 @@ export function buildInjectScript(safeText, appendMode) {
     if (typeof btn.click === 'function') btn.click();
   }
 
-  // 6. Also dispatch DOM Enter event directly to editor
-  editor.dispatchEvent(new KeyboardEvent('keydown', {
-    key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true, cancelable: true, view: window
-  }));
-  editor.dispatchEvent(new KeyboardEvent('keyup', {
-    key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true, view: window
-  }));
+  // 5. Dispatch native Enter keyboard events directly to editor
+  const enterDown = new KeyboardEvent('keydown', {
+    key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true, cancelable: true, composed: true, view: window
+  });
+  editor.dispatchEvent(enterDown);
+
+  const enterUp = new KeyboardEvent('keyup', {
+    key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true, composed: true, view: window
+  });
+  editor.dispatchEvent(enterUp);
 
   return { ok: true, method: btn ? 'button_and_enter' : 'enter', btnX, btnY };
 })()
