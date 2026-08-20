@@ -1642,17 +1642,21 @@ body {
 
 /* ── Native Model Picker Modal ── */
 .model-picker-modal {
-  position: fixed;
-  inset: 0;
-  z-index: 3000 !important;
-  display: flex;
-  align-items: flex-end;
-  justify-content: flex-start;
-  padding: 0 0 calc(max(68px, var(--safe-bottom) + 60px)) 12px;
+  position: fixed !important;
+  inset: 0 !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  z-index: 99999 !important;
+  display: flex !important;
+  align-items: flex-end !important;
+  justify-content: flex-start !important;
+  padding: 0 0 calc(max(68px, var(--safe-bottom) + 60px)) 12px !important;
+  pointer-events: auto !important;
 }
 
 .model-picker-modal.hidden {
   display: none !important;
+  pointer-events: none !important;
 }
 
 .model-picker-card {

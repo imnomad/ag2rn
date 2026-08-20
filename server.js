@@ -1047,12 +1047,19 @@ app.get('/manifest.json', (req, res) => {
 
 // --- Dynamic index.html (injects env-specific icon and app name) ---
 // Served before express.static so it overrides the static index.html.
-const indexHtml = fs.readFileSync(path.join(__dirname, 'public', 'index.html'), 'utf-8');
 app.get('/', (req, res) => {
-  const html = indexHtml
-    .replaceAll('/ag2r-icon.png', appIconPath)
-    .replaceAll('<title>AG2R</title>', `<title>${appName}</title>`)
-  res.type('html').send(html);
+  try {
+    const raw = fs.readFileSync(path.join(__dirname, 'public', 'index.html'), 'utf-8');
+    const html = raw
+      .replaceAll('/ag2r-icon.png', appIconPath)
+      .replaceAll('<title>AG2R</title>', `<title>${appName}</title>`);
+    res.set('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
+    res.set('Pragma', 'no-cache');
+    res.set('Expires', '0');
+    res.type('html').send(html);
+  } catch (err) {
+    res.status(500).send('Error loading index.html');
+  }
 });
 
 app.get('/dashboard', (req, res) => {

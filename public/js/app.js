@@ -610,19 +610,12 @@ async function loadSnapshot() {
         fetchRightSidebar();
       }
     }
-    if (data.isSidebarOpen !== undefined) {
-      const ag2rIsOpen = rightSidebar.classList.contains('open');
-      const suppressSidebarOpen = Date.now() - rightSidebarDismissedAt < 1000;
-      debugLog('sidebar-mirror', `AG:${data.isSidebarOpen} AG2R:${ag2rIsOpen} sig:${data.sidebarSignature}`);
-      if (data.isSidebarOpen && !ag2rIsOpen && !suppressSidebarOpen) {
-        debugLog('sidebar-mirror', 'opening');
-        openRightSidebar();
-      } else if (!data.isSidebarOpen && ag2rIsOpen) {
-        debugLog('sidebar-mirror', 'closing');
-        rightSidebar.classList.remove('open');
-        rightSidebar.inert = true;
-        rightSidebarOverlay.classList.remove('visible');
-        updateReviewToggleIcon();
+    // Only sync content if right sidebar is currently open on mobile
+    if (data.sidebarSignature !== undefined && rightSidebar.classList.contains('open')) {
+      const sigChanged = data.sidebarSignature !== lastSidebarSignature;
+      lastSidebarSignature = data.sidebarSignature;
+      if (sigChanged) {
+        fetchRightSidebar();
       }
     }
 
@@ -1906,25 +1899,27 @@ async function selectModelSilently(modelValue, modelLabel) {
   }
 }
 
-// Wire modal triggers and dismissals via global delegation & direct binds
-const mainModelChip = document.getElementById('model-chip');
-if (mainModelChip) {
-  mainModelChip.onclick = (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    openModelPickerModal();
-  };
+// Wire modal triggers and dismissals via global capture-phase delegation
+function handleModelTriggerGlobal(e) {
+  const btn = e.target.closest('button, [role="button"], #model-chip, .model-chip');
+  if (!btn) return;
+
+  const isChip = btn.id === 'model-chip' || btn.classList.contains('model-chip') || btn.getAttribute('data-testid') === 'model-selector-trigger';
+  const aria = (btn.getAttribute('aria-label') || '').toLowerCase();
+  const text = (btn.textContent || '').toLowerCase();
+  const isModelText = text.includes('gemini') || text.includes('claude') || text.includes('gpt') || text.includes('sonnet') || text.includes('opus');
+
+  if (isChip || aria.includes('select model') || isModelText) {
+    if (!btn.closest('.left-sidebar') && !btn.closest('.right-sidebar') && !btn.closest('#native-model-picker-modal')) {
+      e.preventDefault();
+      e.stopPropagation();
+      openModelPickerModal();
+      return;
+    }
+  }
 }
 
-document.addEventListener('click', (e) => {
-  const modelTrigger = e.target.closest('#model-chip, .model-chip, [data-testid="model-selector-trigger"]');
-  if (modelTrigger) {
-    e.preventDefault();
-    e.stopPropagation();
-    openModelPickerModal();
-    return;
-  }
-});
+document.addEventListener('click', handleModelTriggerGlobal, true);
 
 document.getElementById('model-picker-close')?.addEventListener('click', closeModelPickerModal);
 document.getElementById('model-picker-backdrop')?.addEventListener('click', closeModelPickerModal);
