@@ -1599,7 +1599,14 @@ function updateModelQuotaUI(quotaData) {
 
   if (!quotaBadges || !fill5h || !fillWeekly) return;
 
-  const groupKey = quotaData.activeGroup || 'gemini';
+  const chipText = (document.querySelector('#model-chip .model-chip-text')?.textContent || '').trim().toLowerCase();
+  let groupKey = quotaData.activeGroup || 'gemini';
+  if (chipText.includes('claude') || chipText.includes('gpt') || chipText.includes('sonnet') || chipText.includes('opus')) {
+    groupKey = 'claudeGpt';
+  } else if (chipText.includes('gemini') || chipText.includes('flash') || chipText.includes('pro')) {
+    groupKey = 'gemini';
+  }
+
   const group = quotaData[groupKey] || quotaData.gemini || {};
 
   const pct5h = group.fiveHour?.percentage ?? 100;
@@ -1610,7 +1617,7 @@ function updateModelQuotaUI(quotaData) {
   fill5h.style.strokeDashoffset = `${offset5h}`;
   fill5h.className = `quota-fill ${getQuotaColorClass(pct5h)}`;
   if (badge5h) {
-    badge5h.title = `5-Hour Limit: ${pct5h}% ${group.fiveHour?.refreshText || ''}`;
+    badge5h.title = `5-Hour Limit (${groupKey === 'gemini' ? 'Gemini' : 'Claude/GPT'}): ${pct5h}% ${group.fiveHour?.refreshText || ''}`;
   }
 
   // Update Weekly ring
@@ -1618,7 +1625,7 @@ function updateModelQuotaUI(quotaData) {
   fillWeekly.style.strokeDashoffset = `${offsetWeekly}`;
   fillWeekly.className = `quota-fill ${getQuotaColorClass(pctWeekly)}`;
   if (badgeWeekly) {
-    badgeWeekly.title = `Weekly Limit: ${pctWeekly}% ${group.weekly?.refreshText || ''}`;
+    badgeWeekly.title = `Weekly Limit (${groupKey === 'gemini' ? 'Gemini' : 'Claude/GPT'}): ${pctWeekly}% ${group.weekly?.refreshText || ''}`;
   }
 
   quotaBadges.classList.remove('hidden');
@@ -1696,7 +1703,13 @@ function renderQuotaModalContent(container, quota) {
     `;
   }
 
-  const isGeminiActive = quota.activeGroup === 'gemini';
+  const chipText = (document.querySelector('#model-chip .model-chip-text')?.textContent || '').trim().toLowerCase();
+  let isGeminiActive = quota.activeGroup === 'gemini';
+  if (chipText.includes('claude') || chipText.includes('gpt') || chipText.includes('sonnet') || chipText.includes('opus')) {
+    isGeminiActive = false;
+  } else if (chipText.includes('gemini') || chipText.includes('flash') || chipText.includes('pro')) {
+    isGeminiActive = true;
+  }
 
   container.innerHTML = `
     ${renderGroup('Gemini Models', quota.gemini, isGeminiActive)}
