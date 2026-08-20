@@ -1424,7 +1424,213 @@ body {
   flex-shrink: 0;
 }
 
-/* ── Mic Button (Voice Input) ── */
+/* ── Model Quota Badges ── */
+.model-quota-badges {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: 2px;
+}
+
+.quota-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 1px 4px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.04);
+  cursor: pointer;
+  outline: none;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.quota-badge:active {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.quota-svg {
+  width: 14px;
+  height: 14px;
+  transform: rotate(-90deg);
+  display: block;
+}
+
+.quota-track {
+  fill: transparent;
+  stroke: rgba(255, 255, 255, 0.15);
+  stroke-width: 3.5;
+}
+
+.quota-fill {
+  fill: transparent;
+  stroke: #22c55e;
+  stroke-width: 3.5;
+  stroke-linecap: round;
+  stroke-dasharray: 75.398;
+  stroke-dashoffset: 0;
+  transition: stroke-dashoffset 0.4s ease, stroke 0.3s ease;
+}
+
+.quota-fill.green { stroke: #22c55e; }
+.quota-fill.yellow { stroke: #eab308; }
+.quota-fill.red { stroke: #ef4444; }
+
+.quota-label {
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  line-height: 1;
+}
+
+/* ── Model Quota Detail Modal ── */
+.quota-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 2200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+
+.quota-modal.hidden {
+  display: none;
+}
+
+.quota-modal-card {
+  position: relative;
+  width: 100%;
+  max-width: 340px;
+  background: #18181b;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 14px;
+  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.6);
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  z-index: 2;
+  animation: modalPop 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes modalPop {
+  from { opacity: 0; transform: scale(0.92); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+.quota-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  padding-bottom: 8px;
+}
+
+.quota-modal-title-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.quota-modal-icon {
+  font-size: 18px;
+  color: var(--accent);
+}
+
+.quota-modal-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.quota-modal-close-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+}
+
+.quota-modal-close-btn:active {
+  color: var(--text-primary);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.quota-modal-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.quota-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.quota-group-header {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-muted);
+}
+
+.quota-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: rgba(255, 255, 255, 0.03);
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.quota-row-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+
+.quota-row-name {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.quota-row-subtext {
+  font-size: 10px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.quota-row-meter {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.quota-row-pct {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.quota-row-svg {
+  width: 18px;
+  height: 18px;
+  transform: rotate(-90deg);
+}
 .mic-btn {
   display: flex;
   align-items: center;

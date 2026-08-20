@@ -762,12 +762,94 @@ export const CAPTURE_SCRIPT = `
       const clone = rootCard.cloneNode(true);
       untagAll(tagged);
       clone.querySelectorAll('style').forEach(s => s.remove());
-      queuedMessagesHtml = clone.outerHTML;
+  // -- 14. Extract Model Quota --
+  let modelQuota = window.__ag2r_cached_model_quota || null;
+  try {
+    const now = Date.now();
+    const lastFetch = window.__ag2r_last_quota_fetch || 0;
+    const shouldFetch = !modelQuota || (now - lastFetch > 60000) || (window.__ag2r_force_quota_refresh);
+
+    if (shouldFetch) {
+      window.__ag2r_last_quota_fetch = now;
+      window.__ag2r_force_quota_refresh = false;
+
+      const trigger = document.querySelector('[data-testid="model-selector-trigger"]');
+      if (trigger) {
+        const activeModelText = (trigger.textContent || '').trim();
+        const wasOpen = trigger.getAttribute('aria-expanded') === 'true';
+
+        if (!wasOpen) {
+          trigger.click();
+        }
+
+        const menu = document.querySelector('[data-testid="model-selector-panel"]');
+        if (menu) {
+          const viewUsage = Array.from(menu.querySelectorAll('[role="menuitem"]')).find(el => (el.textContent || '').includes('View Usage'));
+          if (viewUsage) {
+            viewUsage.focus();
+            viewUsage.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true }));
+            viewUsage.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+            viewUsage.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+          }
+
+          const submenus = Array.from(document.querySelectorAll('[role="menu"]'));
+          const usageSubmenu = submenus.find(s => (s.textContent || '').includes('Weekly Limit Remaining') || (s.textContent || '').includes('Gemini Models'));
+
+          if (usageSubmenu) {
+            const quotaData = {
+              gemini: { weekly: { percentage: 100, refreshText: '' }, fiveHour: { percentage: 100, refreshText: '' } },
+              claudeGpt: { weekly: { percentage: 100, refreshText: '' }, fiveHour: { percentage: 100, refreshText: '' } },
+              activeModel: activeModelText,
+              activeGroup: (activeModelText.toLowerCase().includes('claude') || activeModelText.toLowerCase().includes('gpt')) ? 'claudeGpt' : 'gemini',
+              timestamp: now
+            };
+
+            const groups = Array.from(usageSubmenu.querySelectorAll('[role="group"]'));
+            for (const grp of groups) {
+              const grpText = (grp.textContent || '').toLowerCase();
+              const isGemini = grpText.includes('gemini');
+              const targetKey = isGemini ? 'gemini' : 'claudeGpt';
+
+              const rows = Array.from(grp.children).filter(c => c.getAttribute('role') !== 'presentation' && !c.hasAttribute('data-orientation'));
+              for (const row of rows) {
+                const text = row.textContent || '';
+                const isWeekly = text.includes('Weekly');
+                const is5h = text.includes('Five Hour') || text.includes('5-hour') || text.includes('5 Hour');
+
+                let percentage = 100;
+                const pctSpan = row.querySelector('.shrink-0 > span, span.text-foreground');
+                if (pctSpan && pctSpan.textContent.includes('%')) {
+                  const m = pctSpan.textContent.match(/(\d+)%/);
+                  if (m) percentage = parseInt(m[1], 10);
+                } else {
+                  const m = text.match(/(\d+)%/);
+                  if (m) percentage = parseInt(m[1], 10);
+                }
+
+                let refreshText = '';
+                const refreshMatch = text.match(/fully refresh (in [^.]+)/i);
+                if (refreshMatch) {
+                  refreshText = refreshMatch[1];
+                }
+
+                if (isWeekly) quotaData[targetKey].weekly = { percentage, refreshText };
+                if (is5h) quotaData[targetKey].fiveHour = { percentage, refreshText };
+              }
+            }
+            window.__ag2r_cached_model_quota = quotaData;
+            modelQuota = quotaData;
+          }
+
+          if (!wasOpen) {
+            document.body.click();
+          }
+        }
+      }
     }
   } catch (e) {
-    console.debug('[AG2R] Queued messages capture error:', e.message);
+    console.debug('[AG2R] Model quota capture error:', e.message);
   }
 
-  return { html, css, agentRunning, scrollInfo, leftSidebarHtml, sidebarAttentionItems, sidebarSignature, isSidebarOpen, isNewSessionPage, isInputBoxHidden, isSubagentView, parentConversationName, subagentInfoHtml, dropdownHtml, dialogHtml, settingsHtml, activeArtifactUri, activeFileUri, askQuestionHtml, permissionHtml, environmentName, branchName, modelName, btwHtml, queuedMessagesHtml };
+  return { html, css, agentRunning, scrollInfo, leftSidebarHtml, sidebarAttentionItems, sidebarSignature, isSidebarOpen, isNewSessionPage, isInputBoxHidden, isSubagentView, parentConversationName, subagentInfoHtml, dropdownHtml, dialogHtml, settingsHtml, activeArtifactUri, activeFileUri, askQuestionHtml, permissionHtml, environmentName, branchName, modelName, btwHtml, queuedMessagesHtml, modelQuota };
 })()
 `;

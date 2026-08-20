@@ -578,6 +578,11 @@ async function loadSnapshot() {
     // Update model chip in input bar from server-extracted name (existing conversations)
     updateModelChip(data.modelName);
 
+    // Update model quota circular progress rings if available
+    if (data.modelQuota) {
+      updateModelQuotaUI(data.modelQuota);
+    }
+
     // Render left sidebar with AG's captured content (always, even when skipping chat)
     isRendering = true;
     renderSidebar(leftSidebarContent, data.leftSidebarHtml);
@@ -1569,6 +1574,139 @@ function updateModelChip(modelName) {
     chipText.textContent = modelName;
   }
 }
+
+// ─────────────────────────────────────────────
+// Model Quota Progress Rings & Detail Modal
+// ─────────────────────────────────────────────
+let _currentModelQuota = null;
+const CIRCLE_CIRCUMFERENCE = 75.398; // 2 * PI * 12
+
+function getQuotaColorClass(pct) {
+  if (pct > 50) return 'green';
+  if (pct >= 20) return 'yellow';
+  return 'red';
+}
+
+function updateModelQuotaUI(quotaData) {
+  if (!quotaData) return;
+  _currentModelQuota = quotaData;
+
+  const quotaBadges = document.getElementById('model-quota-badges');
+  const fill5h = document.getElementById('quota-fill-5h');
+  const fillWeekly = document.getElementById('quota-fill-weekly');
+  const badge5h = document.getElementById('quota-badge-5h');
+  const badgeWeekly = document.getElementById('quota-badge-weekly');
+
+  if (!quotaBadges || !fill5h || !fillWeekly) return;
+
+  const groupKey = quotaData.activeGroup || 'gemini';
+  const group = quotaData[groupKey] || quotaData.gemini || {};
+
+  const pct5h = group.fiveHour?.percentage ?? 100;
+  const pctWeekly = group.weekly?.percentage ?? 100;
+
+  // Update 5-hour ring
+  const offset5h = Math.max(0, Math.min(CIRCLE_CIRCUMFERENCE, CIRCLE_CIRCUMFERENCE * (1 - pct5h / 100)));
+  fill5h.style.strokeDashoffset = `${offset5h}`;
+  fill5h.className = `quota-fill ${getQuotaColorClass(pct5h)}`;
+  if (badge5h) {
+    badge5h.title = `5-Hour Limit: ${pct5h}% ${group.fiveHour?.refreshText || ''}`;
+  }
+
+  // Update Weekly ring
+  const offsetWeekly = Math.max(0, Math.min(CIRCLE_CIRCUMFERENCE, CIRCLE_CIRCUMFERENCE * (1 - pctWeekly / 100)));
+  fillWeekly.style.strokeDashoffset = `${offsetWeekly}`;
+  fillWeekly.className = `quota-fill ${getQuotaColorClass(pctWeekly)}`;
+  if (badgeWeekly) {
+    badgeWeekly.title = `Weekly Limit: ${pctWeekly}% ${group.weekly?.refreshText || ''}`;
+  }
+
+  quotaBadges.classList.remove('hidden');
+}
+
+function openQuotaDetailModal() {
+  const modal = document.getElementById('quota-detail-modal');
+  const body = document.getElementById('quota-modal-body');
+  if (!modal || !body) return;
+
+  if (!_currentModelQuota) {
+    // Fetch latest quota on demand if not cached
+    fetch('/api/model-quota').then(r => r.json()).then(data => {
+      _currentModelQuota = data;
+      renderQuotaModalContent(body, data);
+    }).catch(() => {
+      body.innerHTML = '<div style="color:var(--text-muted);font-size:12px;">Quota information unavailable.</div>';
+    });
+  } else {
+    renderQuotaModalContent(body, _currentModelQuota);
+  }
+
+  modal.classList.remove('hidden');
+}
+
+function closeQuotaDetailModal() {
+  const modal = document.getElementById('quota-detail-modal');
+  if (modal) modal.classList.add('hidden');
+}
+
+function renderQuotaModalContent(container, quota) {
+  if (!quota) return;
+
+  function renderGroup(title, groupData, isActive) {
+    const weekly = groupData?.weekly || { percentage: 100, refreshText: '' };
+    const fiveH = groupData?.fiveHour || { percentage: 100, refreshText: '' };
+
+    const weeklyOffset = Math.max(0, Math.min(75.398, 75.398 * (1 - weekly.percentage / 100)));
+    const fiveHOffset = Math.max(0, Math.min(75.398, 75.398 * (1 - fiveH.percentage / 100)));
+
+    return `
+      <div class="quota-group">
+        <div class="quota-group-header" style="${isActive ? 'color:var(--accent);' : ''}">
+          ${title} ${isActive ? '• Active Model' : ''}
+        </div>
+        <div class="quota-row">
+          <div class="quota-row-info">
+            <span class="quota-row-name">Five Hour Limit</span>
+            <span class="quota-row-subtext">${fiveH.refreshText ? 'Resets ' + fiveH.refreshText : 'Remaining capacity'}</span>
+          </div>
+          <div class="quota-row-meter">
+            <span class="quota-row-pct">${fiveH.percentage}%</span>
+            <svg viewBox="0 0 32 32" class="quota-row-svg">
+              <circle cx="16" cy="16" r="12" class="quota-track" />
+              <circle cx="16" cy="16" r="12" class="quota-fill ${getQuotaColorClass(fiveH.percentage)}" style="stroke-dashoffset:${fiveHOffset}" />
+            </svg>
+          </div>
+        </div>
+        <div class="quota-row">
+          <div class="quota-row-info">
+            <span class="quota-row-name">Weekly Limit</span>
+            <span class="quota-row-subtext">${weekly.refreshText ? 'Resets ' + weekly.refreshText : 'Remaining capacity'}</span>
+          </div>
+          <div class="quota-row-meter">
+            <span class="quota-row-pct">${weekly.percentage}%</span>
+            <svg viewBox="0 0 32 32" class="quota-row-svg">
+              <circle cx="16" cy="16" r="12" class="quota-track" />
+              <circle cx="16" cy="16" r="12" class="quota-fill ${getQuotaColorClass(weekly.percentage)}" style="stroke-dashoffset:${weeklyOffset}" />
+            </svg>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  const isGeminiActive = quota.activeGroup === 'gemini';
+
+  container.innerHTML = `
+    ${renderGroup('Gemini Models', quota.gemini, isGeminiActive)}
+    ${renderGroup('Claude & GPT Models', quota.claudeGpt, !isGeminiActive)}
+  `;
+}
+
+// Wire modal triggers and dismissals
+document.getElementById('quota-badge-5h')?.addEventListener('click', openQuotaDetailModal);
+document.getElementById('quota-badge-weekly')?.addEventListener('click', openQuotaDetailModal);
+document.getElementById('quota-modal-close')?.addEventListener('click', closeQuotaDetailModal);
+document.getElementById('quota-modal-backdrop')?.addEventListener('click', closeQuotaDetailModal);
 
 // ─────────────────────────────────────────────
 // Photo Upload (staged thumbnails, upload on send)

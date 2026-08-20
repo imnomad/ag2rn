@@ -129,6 +129,22 @@
                 <span class="model-chip-text"></span>
                 <span class="material-symbols-rounded model-chip-chevron">expand_more</span>
               </button>
+              <div id="model-quota-badges" class="model-quota-badges hidden">
+                <button id="quota-badge-5h" class="quota-badge" type="button" aria-label="5-Hour Quota" title="5-Hour Limit">
+                  <svg viewBox="0 0 32 32" class="quota-svg">
+                    <circle cx="16" cy="16" r="12" class="quota-track" />
+                    <circle cx="16" cy="16" r="12" class="quota-fill" id="quota-fill-5h" />
+                  </svg>
+                  <span class="quota-label">5h</span>
+                </button>
+                <button id="quota-badge-weekly" class="quota-badge" type="button" aria-label="Weekly Quota" title="Weekly Limit">
+                  <svg viewBox="0 0 32 32" class="quota-svg">
+                    <circle cx="16" cy="16" r="12" class="quota-track" />
+                    <circle cx="16" cy="16" r="12" class="quota-fill" id="quota-fill-weekly" />
+                  </svg>
+                  <span class="quota-label">7d</span>
+                </button>
+              </div>
             </div>
             <div class="input-right-actions">
               <button id="mic-btn" class="mic-btn" aria-label="Voice input" type="button">
@@ -256,6 +272,23 @@
           <span class="material-symbols-rounded">close</span>
         </button>
         <img id="image-viewer-img" class="image-viewer-img" src="" alt="Enlarged view">
+      </div>
+    </div>
+
+    <!-- Model Quota Detail Modal -->
+    <div id="quota-detail-modal" class="quota-modal hidden">
+      <div id="quota-modal-backdrop" class="dropdown-backdrop"></div>
+      <div class="quota-modal-card">
+        <div class="quota-modal-header">
+          <div class="quota-modal-title-row">
+            <span class="material-symbols-rounded quota-modal-icon">speed</span>
+            <span class="quota-modal-title">Model Quota & Limits</span>
+          </div>
+          <button id="quota-modal-close" class="quota-modal-close-btn" type="button" aria-label="Close">
+            <span class="material-symbols-rounded">close</span>
+          </button>
+        </div>
+        <div id="quota-modal-body" class="quota-modal-body"></div>
       </div>
     </div>
 

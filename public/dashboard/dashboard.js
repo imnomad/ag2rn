@@ -59,10 +59,10 @@ document.addEventListener('DOMContentLoaded', () => {
       if (target) target.classList.add('active');
 
       const titleMap = {
-        overview: 'Panel de Control',
-        pairing: 'Vincular Dispositivo Móvil',
-        devices: 'Dispositivos Autorizados',
-        logs: 'Consola de Eventos y Diagnósticos',
+        overview: 'Control Panel',
+        pairing: 'Pair Mobile Device',
+        devices: 'Authorized Devices',
+        logs: 'Event & Diagnostic Console',
       };
       document.getElementById('page-title').textContent = titleMap[tabId] || 'AG2RN';
     });
@@ -77,34 +77,34 @@ document.addEventListener('DOMContentLoaded', () => {
 
       // Antigravity 2.0 Status
       if (data.antigravityRunning) {
-        agBadge.textContent = 'En ejecución';
+        agBadge.textContent = 'Running';
         agBadge.className = 'card-tag tag-emerald';
-        agTitle.textContent = 'Antigravity 2.0 Activo';
+        agTitle.textContent = 'Antigravity 2.0 Active';
         agDetail.textContent = `PID: ${data.antigravityPid}`;
       } else {
-        agBadge.textContent = 'Inactivo';
+        agBadge.textContent = 'Inactive';
         agBadge.className = 'card-tag tag-rose';
-        agTitle.textContent = 'Antigravity 2.0 Detenido';
-        agDetail.textContent = 'Haz clic en "Lanzar Antigravity" para iniciar.';
+        agTitle.textContent = 'Antigravity 2.0 Stopped';
+        agDetail.textContent = 'Click "Launch Antigravity" to start.';
       }
 
       agPortVal.textContent = data.cdpPort || '9000';
 
       // CDP Bridge Status
       if (data.cdpConnected) {
-        cdpBadge.textContent = 'Conectado';
+        cdpBadge.textContent = 'Connected';
         cdpBadge.className = 'card-tag tag-emerald';
-        cdpTitle.textContent = 'Bridge CDP Enlazado';
-        cdpDetail.textContent = `Conectado a puerto ${data.cdpPort}`;
+        cdpTitle.textContent = 'CDP Bridge Linked';
+        cdpDetail.textContent = `Connected to port ${data.cdpPort}`;
         globalDot.className = 'status-dot online';
-        globalStatus.textContent = 'En línea';
+        globalStatus.textContent = 'Online';
       } else {
-        cdpBadge.textContent = 'Desconectado';
+        cdpBadge.textContent = 'Disconnected';
         cdpBadge.className = 'card-tag tag-rose';
-        cdpTitle.textContent = 'Esperando CDP...';
-        cdpDetail.textContent = 'Antigravity debe tener --remote-debugging-port';
+        cdpTitle.textContent = 'Waiting for CDP...';
+        cdpDetail.textContent = 'Antigravity must have --remote-debugging-port';
         globalDot.className = 'status-dot offline';
-        globalStatus.textContent = 'Esperando Antigravity';
+        globalStatus.textContent = 'Waiting for Antigravity';
       }
 
       // Network & Clients
@@ -112,7 +112,7 @@ document.addEventListener('DOMContentLoaded', () => {
       wsClientsCount.textContent = data.wsClients || 0;
 
     } catch (err) {
-      addLog(`Error al consultar estado: ${err.message}`, true);
+      addLog(`Error querying status: ${err.message}`, true);
     }
   }
 
@@ -129,10 +129,10 @@ document.addEventListener('DOMContentLoaded', () => {
         if (qrImageLarge) qrImageLarge.src = data.qrDataUrl;
         currentQrPayload = data.qrPayload;
         qrLoading.style.display = 'none';
-        addLog(`Nuevo código QR generado. Vence a las: ${new Date(data.expiresAt).toLocaleTimeString()}`);
+        addLog(`New QR code generated. Expires at: ${new Date(data.expiresAt).toLocaleTimeString()}`);
       }
     } catch (err) {
-      addLog(`Error generando QR: ${err.message}`, true);
+      addLog(`Error generating QR: ${err.message}`, true);
     }
   }
 
@@ -144,14 +144,14 @@ document.addEventListener('DOMContentLoaded', () => {
       const data = await res.json();
       const devices = data.devices || [];
 
-      devicesCountBadge.textContent = `${devices.length} dispositivo(s)`;
+      devicesCountBadge.textContent = `${devices.length} device(s)`;
 
       if (devices.length === 0) {
         devicesList.innerHTML = `
           <div class="empty-devices">
             <span class="material-symbols-rounded">mobile_off</span>
-            <p>No hay dispositivos móviles vinculados aún.</p>
-            <small>Escanea el código QR para autorizar tu primer teléfono.</small>
+            <p>No mobile devices paired yet.</p>
+            <small>Scan the QR code to authorize your first device.</small>
           </div>
         `;
         return;
@@ -161,22 +161,22 @@ document.addEventListener('DOMContentLoaded', () => {
         <div class="device-item">
           <div class="device-info">
             <h4>${d.deviceName} <span class="badge">${d.platform.toUpperCase()}</span></h4>
-            <p>Última conexión: ${new Date(d.lastSeen).toLocaleString()}</p>
+            <p>Last seen: ${new Date(d.lastSeen).toLocaleString()}</p>
           </div>
           <button class="btn btn-sm btn-ghost text-rose" onclick="revokeDevice('${d.deviceId}')">
-            Revocar
+            Revoke
           </button>
         </div>
       `).join('');
 
     } catch (err) {
-      addLog(`Error cargando dispositivos: ${err.message}`, true);
+      addLog(`Error loading devices: ${err.message}`, true);
     }
   }
 
   // Global revoke helper
   window.revokeDevice = async (deviceId) => {
-    if (!confirm('¿Deseas revocar el acceso a este dispositivo?')) return;
+    if (!confirm('Do you want to revoke access for this device?')) return;
     try {
       const res = await fetch('/api/pairing/revoke', {
         method: 'POST',
@@ -184,28 +184,28 @@ document.addEventListener('DOMContentLoaded', () => {
         body: JSON.stringify({ deviceId }),
       });
       if (res.ok) {
-        addLog(`Dispositivo ${deviceId} revocado con éxito.`);
+        addLog(`Device ${deviceId} revoked successfully.`);
         refreshDevices();
       }
     } catch (err) {
-      addLog(`Error revocando dispositivo: ${err.message}`, true);
+      addLog(`Error revoking device: ${err.message}`, true);
     }
   };
 
   // Launch Antigravity
   btnLaunchAg.addEventListener('click', async () => {
-    addLog('Solicitando lanzamiento de Antigravity 2.0...');
+    addLog('Requesting Antigravity 2.0 launch...');
     btnLaunchAg.disabled = true;
     try {
       const res = await fetch('/api/antigravity/launch', { method: 'POST' });
       const data = await res.json();
       if (data.ok) {
-        addLog(`Antigravity 2.0 lanzado con éxito (PID: ${data.pid || 'Iniciado'})`);
+        addLog(`Antigravity 2.0 launched successfully (PID: ${data.pid || 'Started'})`);
       } else {
-        addLog(`Error lanzando Antigravity: ${data.reason}`, true);
+        addLog(`Error launching Antigravity: ${data.reason}`, true);
       }
     } catch (err) {
-      addLog(`Error de red: ${err.message}`, true);
+      addLog(`Network error: ${err.message}`, true);
     } finally {
       setTimeout(() => {
         btnLaunchAg.disabled = false;
@@ -216,19 +216,19 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Restart Antigravity
   btnRestartAg.addEventListener('click', async () => {
-    if (!confirm('¿Deseas reiniciar el proceso de Antigravity 2.0?')) return;
-    addLog('Reiniciando Antigravity 2.0...');
+    if (!confirm('Do you want to restart the Antigravity 2.0 process?')) return;
+    addLog('Restarting Antigravity 2.0...');
     btnRestartAg.disabled = true;
     try {
       const res = await fetch('/restart-antigravity', { method: 'POST' });
       const data = await res.json();
       if (data.ok) {
-        addLog('Reinicio de Antigravity 2.0 completado.');
+        addLog('Antigravity 2.0 restart completed.');
       } else {
-        addLog(`Error al reiniciar: ${data.reason}`, true);
+        addLog(`Error restarting: ${data.reason}`, true);
       }
     } catch (err) {
-      addLog(`Error de red: ${err.message}`, true);
+      addLog(`Network error: ${err.message}`, true);
     } finally {
       setTimeout(() => {
         btnRestartAg.disabled = false;
@@ -242,9 +242,9 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!currentQrPayload) return;
     navigator.clipboard.writeText(currentQrPayload).then(() => {
       const orig = btnCopyMagicLink.innerHTML;
-      btnCopyMagicLink.innerHTML = `<span class="material-symbols-rounded">check</span><span>¡Copiado!</span>`;
+      btnCopyMagicLink.innerHTML = `<span class="material-symbols-rounded">check</span><span>Copied!</span>`;
       setTimeout(() => { btnCopyMagicLink.innerHTML = orig; }, 2000);
-      addLog('Enlace de emparejamiento copiado al portapapeles.');
+      addLog('Pairing link copied to clipboard.');
     });
   });
 

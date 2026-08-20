@@ -822,7 +822,8 @@ function fireBurstCaptures(delays) {
             (snapshot.btwHtml || '') +
             (snapshot.modelName || '') +
             (snapshot.environmentName || '') +
-            (snapshot.branchName || '')
+            (snapshot.branchName || '') +
+            JSON.stringify(snapshot.modelQuota || '')
           );
           if (hash !== lastSnapshotHash) {
             cachedSnapshot = snapshot;
@@ -875,8 +876,16 @@ function startPolling() {
           (snapshot.btwHtml || '') +
           (snapshot.modelName || '') +
           (snapshot.environmentName || '') +
-          (snapshot.branchName || '')
+          (snapshot.branchName || '') +
+          JSON.stringify(snapshot.modelQuota || '')
         );
+
+        // Check if agent just finished responding -> force model quota refresh
+        if (cachedSnapshot?.agentRunning === true && snapshot.agentRunning === false && cdpClient) {
+          cdpClient.Runtime.evaluate({
+            expression: 'window.__ag2r_force_quota_refresh = true;'
+          }).catch(() => {});
+        }
 
         // Only broadcast and update cache when content actually changes
         if (hash !== lastSnapshotHash) {
@@ -1320,6 +1329,16 @@ app.post('/restart-antigravity', async (req, res) => {
     log('Restart', 'Error:', e.message);
     res.status(500).json({ ok: false, reason: e.message });
   }
+});
+
+// --- Model Quota Endpoint ---
+app.get('/api/model-quota', (req, res) => {
+  res.json(cachedSnapshot?.modelQuota || {
+    gemini: { weekly: { percentage: 100, refreshText: '' }, fiveHour: { percentage: 100, refreshText: '' } },
+    claudeGpt: { weekly: { percentage: 100, refreshText: '' }, fiveHour: { percentage: 100, refreshText: '' } },
+    activeGroup: 'gemini',
+    timestamp: Date.now()
+  });
 });
 
 // --- System & Network Status Endpoint ---

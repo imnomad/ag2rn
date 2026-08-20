@@ -1,36 +1,36 @@
 # AG2RN Push Gateway (Serverless)
 
-Un microservicio serverless (Cloudflare Worker / Vercel Edge) **Zero-Knowledge** para el reenvío seguro de notificaciones push nativas a dispositivos **iOS (Apple APNs)** y **Android (Google FCM)**.
+A stateless, **Zero-Knowledge** serverless microservice (Cloudflare Worker / Vercel Edge) for securely forwarding native push notifications to **iOS (Apple APNs)** and **Android (Google FCM)** devices.
 
 ---
 
-## 🔒 Privacidad Zero-Knowledge
+## 🔒 Zero-Knowledge Privacy
 
-El Push Gateway es **estatalmente nulo (stateless)**:
-* No almacena base de datos con tokens ni mensajes.
-* No tiene acceso al código del proyecto ni a las conversaciones.
-* Solo actúa como un transportador cifrado entre tu servidor AG2RN y los servidores de Apple/Google.
-
----
-
-## 🛠️ Configuración de Producción
-
-### 1. Variables de Entorno y Secretos (Cloudflare Worker)
-
-Configura los siguientes secretos mediante `wrangler secret put`:
-
-#### Para Apple APNs (iOS):
-1. **`APNS_KEY_ID`**: ID de la clave APNs de 10 caracteres (de Apple Developer Portal -> Keys).
-2. **`APNS_TEAM_ID`**: ID de tu equipo Apple Developer de 10 caracteres.
-3. **`APNS_PRIVATE_KEY`**: Contenido de tu archivo `.p8` (formato PEM de clave privada).
-4. **`APNS_TOPIC`**: Bundle ID de la app iOS (por defecto `com.ag2rn.app`).
-
-#### Para Google FCM (Android):
-1. **`FCM_SERVER_KEY`**: Server Key o clave de cuenta de servicio de Firebase Console.
+The Push Gateway is **stateless**:
+* It stores no database of tokens or message history.
+* It has zero access to project source code or conversation transcripts.
+* It acts strictly as an encrypted forwarder between your local AG2RN host and official Apple/Google push notification servers.
 
 ---
 
-## 🚀 Despliegue en 1 Clic
+## 🛠️ Production Configuration
+
+### 1. Environment Variables & Secrets (Cloudflare Worker)
+
+Configure the following secrets using `wrangler secret put`:
+
+#### For Apple APNs (iOS):
+1. **`APNS_KEY_ID`**: 10-character APNs Key ID (from Apple Developer Portal -> Keys).
+2. **`APNS_TEAM_ID`**: 10-character Apple Developer Team ID.
+3. **`APNS_PRIVATE_KEY`**: Contents of your `.p8` file (PEM private key format).
+4. **`APNS_TOPIC`**: iOS app bundle ID (defaults to `com.ag2rn.app`).
+
+#### For Google FCM (Android):
+1. **`FCM_SERVER_KEY`**: Server Key or Service Account credentials from Firebase Console.
+
+---
+
+## 🚀 1-Click Deployment
 
 ```bash
 cd packages/push-gateway

@@ -18,7 +18,7 @@ process.on('uncaughtException', (err) => {
   }
   console.error('[Fatal Desktop Error]', err);
   try {
-    dialog.showErrorBox('AG2RN - Error Inesperado', `${err.message}\n\n${err.stack || ''}`);
+    dialog.showErrorBox('AG2RN - Unexpected Error', `${err.message}\n\n${err.stack || ''}`);
   } catch {}
 });
 
@@ -148,7 +148,7 @@ function createTray() {
 
     const contextMenu = Menu.buildFromTemplate([
       {
-        label: 'Abrir Panel de Control',
+        label: 'Open Control Center',
         click: () => {
           if (mainWindow) {
             mainWindow.show();
@@ -157,14 +157,14 @@ function createTray() {
         },
       },
       {
-        label: 'Abrir en Navegador Web',
+        label: 'Open in Web Browser',
         click: () => {
           shell.openExternal(getDashboardUrl());
         },
       },
       { type: 'separator' },
       {
-        label: 'Lanzar Antigravity 2.0',
+        label: 'Launch Antigravity 2.0',
         click: async () => {
           try {
             const res = await fetch(`https://localhost:${SERVER_PORT}/api/antigravity/launch`, { method: 'POST' });
@@ -173,14 +173,14 @@ function createTray() {
               dialog.showMessageBox({
                 type: 'info',
                 title: 'AG2RN',
-                message: 'Antigravity 2.0 ha sido lanzado con éxito con CDP habilitado.',
+                message: 'Antigravity 2.0 has been launched successfully with CDP enabled.',
               });
             }
           } catch {}
         },
       },
       {
-        label: 'Reiniciar Antigravity 2.0',
+        label: 'Restart Antigravity 2.0',
         click: async () => {
           try {
             await fetch(`https://localhost:${SERVER_PORT}/restart-antigravity`, { method: 'POST' });
@@ -189,7 +189,7 @@ function createTray() {
       },
       { type: 'separator' },
       {
-        label: 'Salir de AG2RN',
+        label: 'Quit AG2RN',
         click: () => {
           isQuitting = true;
           app.quit();

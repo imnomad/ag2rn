@@ -103,9 +103,9 @@
 
         <div style="background: rgba(17, 24, 39, 0.9); border: 1px solid rgba(255,255,255,0.08); border-radius: 16px; padding: 24px; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.5);">
           <div style="font-size: 42px; margin-bottom: 12px;">📱 💻</div>
-          <h3 style="font-size: 1.15rem; font-weight: 600; margin-bottom: 8px;">Conectar a tu Computadora</h3>
+          <h3 style="font-size: 1.15rem; font-weight: 600; margin-bottom: 8px;">Connect to your Computer</h3>
           <p style="font-size: 0.85rem; color: #94a3b8; line-height: 1.5; margin-bottom: 20px;">
-            Presiona <strong>Auto-Detectar</strong> o pega el enlace mágico de tu PC.
+            Tap <strong>Auto-Detect</strong> or paste your PC's magic pairing link.
           </p>
 
           <div style="display: flex; flex-direction: column; gap: 12px; text-align: left;">
@@ -114,16 +114,16 @@
               color: white; border: none; padding: 15px; border-radius: 12px; font-size: 1rem; font-weight: 700; cursor: pointer;
               display: flex; align-items: center; justify-content: center; gap: 8px; box-shadow: 0 4px 12px rgba(37,99,235,0.4);
             ">
-              <span>⚡ Auto-Detectar Servidor Local</span>
+              <span>⚡ Auto-Detect Local Server</span>
             </button>
 
             <div style="display: flex; align-items: center; gap: 8px; margin: 6px 0;">
               <div style="flex: 1; height: 1px; background: rgba(255,255,255,0.1);"></div>
-              <span style="font-size: 0.75rem; color: #64748b;">O ENTRADA MANUAL</span>
+              <span style="font-size: 0.75rem; color: #64748b;">OR MANUAL ENTRY</span>
               <div style="flex: 1; height: 1px; background: rgba(255,255,255,0.1);"></div>
             </div>
 
-            <input id="manual-pairing-input" type="text" placeholder="Ej: http://10.0.2.2:3821 o enlace..." style="
+            <input id="manual-pairing-input" type="text" placeholder="e.g. http://10.0.2.2:3821 or link..." style="
               background: #030712; border: 1px solid rgba(255,255,255,0.15); color: white;
               padding: 12px 14px; border-radius: 10px; font-size: 0.85rem; width: 100%; box-sizing: border-box; outline: none;
             ">
@@ -131,7 +131,7 @@
               background: rgba(255,255,255,0.08); color: white; border: 1px solid rgba(255,255,255,0.15);
               padding: 11px; border-radius: 10px; font-size: 0.85rem; font-weight: 600; cursor: pointer;
             ">
-              <span>Conectar Manualmente</span>
+              <span>Connect Manually</span>
             </button>
           </div>
         </div>
@@ -203,7 +203,7 @@
 
   // Auto-probe all candidate addresses and connect to the fastest responder
   async function autoDetectAndConnect(statusEl) {
-    statusEl.textContent = '⚡ Probando conexiones con la PC...';
+    statusEl.textContent = '⚡ Probing connections to PC...';
     statusEl.style.color = '#38bdf8';
 
     const candidates = getProbeCandidates();
@@ -219,7 +219,7 @@
         clearTimeout(timeout);
 
         if (res.ok || res.status === 200 || res.status === 401) {
-          statusEl.textContent = `¡Servidor detectado en ${c.url}! Conectando...`;
+          statusEl.textContent = `Server detected at ${c.url}! Connecting...`;
           statusEl.style.color = '#10b981';
 
           await completePairing(c.url, c.token || '', statusEl);
@@ -228,13 +228,13 @@
       } catch (e) {}
     }
 
-    statusEl.textContent = 'No se pudo conectar. Verifica que AG2RN esté abierto en tu PC.';
+    statusEl.textContent = 'Could not connect. Verify AG2RN is running on your PC.';
     statusEl.style.color = '#f43f5e';
   }
 
   // Process pairing input with smart fallbacks
   async function processPairingInput(inputString, statusEl) {
-    statusEl.textContent = 'Verificando dirección...';
+    statusEl.textContent = 'Verifying address...';
     statusEl.style.color = '#38bdf8';
 
     const candidates = getProbeCandidates(inputString);
@@ -268,7 +268,7 @@
       const deviceId = getOrCreateDeviceId();
       const deviceName = navigator.userAgent.includes('iPhone') ? 'iPhone'
         : navigator.userAgent.includes('Android') ? 'Android Pixel'
-        : 'Dispositivo Móvil';
+        : 'Mobile Device';
       const platform = navigator.userAgent.includes('iPhone') ? 'ios' : 'android';
 
       let authToken = 'connected';
@@ -285,7 +285,7 @@
       localStorage.setItem(STORAGE_KEY_URL, cleanUrl);
       localStorage.setItem(STORAGE_KEY_TOKEN, authToken);
 
-      statusEl.textContent = '¡Enlazado con éxito a Antigravity 2.0!';
+      statusEl.textContent = 'Successfully linked to Antigravity 2.0!';
       statusEl.style.color = '#10b981';
 
       setTimeout(() => {
@@ -314,7 +314,7 @@
 
   // Global helper to unpair
   window.unpairServer = () => {
-    if (confirm('¿Deseas desvincular este dispositivo de la computadora?')) {
+    if (confirm('Do you want to unpair this device from your computer?')) {
       localStorage.removeItem(STORAGE_KEY_URL);
       localStorage.removeItem(STORAGE_KEY_TOKEN);
       window.location.reload();
