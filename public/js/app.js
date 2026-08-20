@@ -2530,14 +2530,8 @@ function renderNewSessionPage(container, data) {
     || capturedZone.querySelector('[data-lexical-editor]')
     || capturedZone.querySelector('[role="textbox"]');
   if (wrapper && editor) {
-    // Hide the model chip — the captured zone already shows the model selector
-    const chip = wrapper.querySelector('#model-chip');
-    if (chip) chip.style.display = 'none';
     editor.replaceWith(wrapper);
   } else if (wrapper) {
-    // Fallback: append if editor not found
-    const chip = wrapper.querySelector('#model-chip');
-    if (chip) chip.style.display = 'none';
     capturedZone.appendChild(wrapper);
   }
 }
@@ -2549,13 +2543,21 @@ function processNewSessionCapture(zone) {
   hideAgDuplicateControls(zone);
 
   // Wire model selector triggers in new session page to open native silent modal
-  zone.querySelectorAll('[data-testid="model-selector-trigger"]').forEach(el => {
-    el.removeAttribute('data-ag-click-id');
-    el.addEventListener('click', (e) => {
-      e.stopPropagation();
-      e.preventDefault();
-      openModelPickerModal();
-    });
+  zone.querySelectorAll('button, [role="button"]').forEach(el => {
+    const t = (el.textContent || '').toLowerCase();
+    const aria = (el.getAttribute('aria-label') || '').toLowerCase();
+    const testId = el.getAttribute('data-testid') || '';
+    const isModelBtn = testId.includes('model') ||
+      aria.includes('model') ||
+      t.includes('gemini') || t.includes('claude') || t.includes('sonnet') || t.includes('gpt-oss') || t.includes('flash') || t.includes('opus');
+    if (isModelBtn) {
+      el.removeAttribute('data-ag-click-id');
+      el.addEventListener('click', (e) => {
+        e.stopPropagation();
+        e.preventDefault();
+        openModelPickerModal();
+      });
+    }
   });
 }
 
