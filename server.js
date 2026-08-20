@@ -880,11 +880,6 @@ function startPolling() {
           JSON.stringify(snapshot.modelQuota || '')
         );
 
-        // Check if agent just finished responding -> refresh model quota invisibly
-        if (cachedSnapshot?.agentRunning === true && snapshot.agentRunning === false && cdpClient) {
-          fetchModelQuotaViaCDP(true).catch(() => {});
-        }
-
         // Only broadcast and update cache when content actually changes
         if (hash !== lastSnapshotHash) {
           console.debug('[SidebarMirror:server] isSidebarOpen:', snapshot.isSidebarOpen, 'sig:', snapshot.sidebarSignature);
