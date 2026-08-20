@@ -8,8 +8,10 @@ export const TAG_INTERACTIVES_FN = `
     let idx = 0;
     const tagged = [];
     // Semantic interactive elements — always tag, no text-length filter
-    root.querySelectorAll('button, a, [role="button"], [role="option"], [role="menuitem"], [role="menuitemradio"]').forEach(el => {
-      if (skipVisibilityCheck || el.offsetParent !== null) {
+    root.querySelectorAll(
+      'button, a, [role="button"], [role="option"], [role="menuitem"], [role="menuitemradio"], [role="treeitem"], [data-testid*="convo-pill"], [data-testid*="project"]'
+    ).forEach(el => {
+      if (skipVisibilityCheck || el.offsetParent !== null || (el.getClientRects && el.getClientRects().length > 0)) {
         const text = (el.textContent || '').trim();
         el.setAttribute('data-ag-click-id', prefix + ':' + idx);
         el.setAttribute('data-ag-click-label', text.substring(0, 50));
@@ -23,7 +25,7 @@ export const TAG_INTERACTIVES_FN = `
     // (e.g. AG artifact cards), so they bypass the text-length filter.
     if (includeCursorPointer) {
       root.querySelectorAll('[class*="cursor-pointer"]').forEach(el => {
-        if ((skipVisibilityCheck || el.offsetParent !== null) && !el.hasAttribute('data-ag-click-id')) {
+        if ((skipVisibilityCheck || el.offsetParent !== null || (el.getClientRects && el.getClientRects().length > 0)) && !el.hasAttribute('data-ag-click-id')) {
           const text = (el.textContent || '').trim();
           const hasHandler = typeof el.onclick === 'function';
           if (maxTextLength && text.length > maxTextLength && !hasHandler) return;

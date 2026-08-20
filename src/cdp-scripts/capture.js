@@ -299,12 +299,18 @@ export const CAPTURE_SCRIPT = `
       // or a nested portal inside an ID-wrapped Radix container (div#radix-:rXX:).
       // Radix wraps portals in ID'd divs — we need to look inside them.
       const targets = child.id
-        ? Array.from(child.querySelectorAll('[role="dialog"], [role="listbox"]'))
+        ? Array.from(child.querySelectorAll('[role="dialog"], [role="listbox"], [role="menu"], [data-radix-popper-content-wrapper], [data-radix-menu-content], [data-radix-select-content], [data-radix-dropdown-menu-content]'))
         : [child];
 
       for (const target of targets) {
-        // Dropdown menu (role="listbox")
-        if (!dropdownHtml && target.getAttribute('role') === 'listbox') {
+        const isMenuOrListbox = target.getAttribute('role') === 'listbox' ||
+                                target.getAttribute('role') === 'menu' ||
+                                target.hasAttribute('data-radix-menu-content') ||
+                                target.hasAttribute('data-radix-select-content') ||
+                                target.hasAttribute('data-radix-dropdown-menu-content');
+
+        // Dropdown menu (role="listbox", role="menu", Radix menu)
+        if (!dropdownHtml && isMenuOrListbox) {
           const tagged = tagInteractives(target, 'dropdown', true, false);
           const clone = target.cloneNode(true);
           untagAll(tagged);
@@ -322,7 +328,7 @@ export const CAPTURE_SCRIPT = `
         }
 
         // Popover dialog (role="dialog" portal, e.g. environment selector, context menus)
-        if (!dialogHtml && target.getAttribute('role') === 'dialog') {
+        if (!dialogHtml && (target.getAttribute('role') === 'dialog' || target.hasAttribute('data-radix-popper-content-wrapper'))) {
           const tagged = tagInteractives(target, 'dialog', true, false);
           const clone = target.cloneNode(true);
           untagAll(tagged);
@@ -493,7 +499,12 @@ export const CAPTURE_SCRIPT = `
   // -- 13. Extract model name from model selector button --
   let modelName = null;
   try {
-    const modelBtn = document.querySelector('[aria-label*="Select model"]');
+    const modelBtn = document.querySelector(
+      '[aria-label*="model" i], [aria-label*="Select model" i], [data-testid*="model"], [data-tooltip-id*="model"], button:has(svg.lucide-sparkles), button:has(svg.lucide-cpu)'
+    ) || Array.from(document.querySelectorAll('button')).find(b => {
+      const t = (b.textContent || '').toLowerCase();
+      return (t.includes('gemini') || t.includes('claude') || t.includes('gpt') || t.includes('sonnet') || t.includes('flash') || t.includes('pro') || t.includes('opus')) && !b.closest('.scrollbar-hide');
+    });
     if (modelBtn) {
       const span = modelBtn.querySelector('span');
       modelName = span ? span.textContent.trim() : (modelBtn.textContent || '').trim();

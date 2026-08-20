@@ -41,7 +41,7 @@ export function buildMainClickScript(safeClickId, safeLabel) {
           }
         }
       } else if (source === 'left') {
-        root = document.querySelector('.bg-sidebar');
+        root = document.querySelector('.bg-sidebar, [class*="bg-sidebar"], [data-testid="sidebar"], [data-testid="left-sidebar"], aside, nav[aria-label*="sidebar" i]');
       } else if (source === 'right') {
         // Anchor-based: find via tab-id buttons or toggle-aux-sidebar
         const tabBtn = document.querySelector('[data-tab-id="overview"], [data-tab-id="review"]');
@@ -58,15 +58,16 @@ export function buildMainClickScript(safeClickId, safeLabel) {
           }
         }
       } else if (source === 'dropdown') {
-        // Portal dropdown: body > div[role="listbox"] or nested inside Radix container
+        // Portal dropdown: body > div[role="listbox"], [role="menu"], or nested inside Radix container
         for (const child of document.body.children) {
-          if (child.getAttribute('role') === 'listbox' && child.textContent.trim()) {
+          const role = child.getAttribute('role');
+          if ((role === 'listbox' || role === 'menu' || child.hasAttribute('data-radix-popper-content-wrapper')) && child.textContent.trim()) {
             root = child;
             break;
           }
           // Radix wraps portals in ID'd divs — look inside them (matches capture.js logic)
           if (child.id) {
-            const nested = child.querySelector('[role="listbox"]');
+            const nested = child.querySelector('[role="listbox"], [role="menu"], [data-radix-popper-content-wrapper], [data-radix-menu-content], [data-radix-select-content], [data-radix-dropdown-menu-content]');
             if (nested && nested.textContent.trim()) {
               root = nested;
               break;
@@ -249,7 +250,15 @@ export function buildMainClickScript(safeClickId, safeLabel) {
         return { ok: false, reason: 'no_btw_container' };
       } else if (source === 'model') {
         // Model selector button — opens AG's model picker dialog
-        const target = document.querySelector('[aria-label*="Select model"]');
+        const findModelBtn = () => {
+          return document.querySelector(
+            '[aria-label*="model" i], [aria-label*="Select model" i], [data-testid*="model"], [data-tooltip-id*="model"], button:has(svg.lucide-sparkles), button:has(svg.lucide-cpu)'
+          ) || Array.from(document.querySelectorAll('button')).find(b => {
+            const t = (b.textContent || '').toLowerCase();
+            return (t.includes('gemini') || t.includes('claude') || t.includes('gpt') || t.includes('sonnet') || t.includes('flash') || t.includes('pro') || t.includes('opus')) && !b.closest('.scrollbar-hide');
+          });
+        };
+        const target = findModelBtn();
         if (target) {
           const actualLabel = (target.textContent || '').trim().substring(0, 50);
           target.click();
@@ -271,9 +280,6 @@ export function buildMainClickScript(safeClickId, safeLabel) {
 
       // Settings: inline the same logic as tagInteractives(root, 'settings', true, false)
       // to guarantee identical enumeration between capture and click.
-      // tagInteractives isn't available here (it's in the capture closure),
-      // so we reproduce its logic: tag buttons/links with skipVisibilityCheck=true,
-      // includeCursorPointer=false.
       if (source === 'settings') {
         let sIdx = 0;
         root.querySelectorAll('button, a, [role="button"], [role="option"], [role="menuitem"], [role="menuitemradio"]').forEach(el => {
@@ -295,15 +301,14 @@ export function buildMainClickScript(safeClickId, safeLabel) {
       const maxLen = (source === 'chat') ? 80 : 0;
       const visible = [];
       // Semantic interactive elements — always include, no text-length filter
-      root.querySelectorAll('button, a, [role="button"], [role="option"], [role="menuitem"], [role="menuitemradio"]').forEach(el => {
-        if (skipVis || el.offsetParent !== null) {
+      root.querySelectorAll('button, a, [role="button"], [role="option"], [role="menuitem"], [role="menuitemradio"], [role="treeitem"], [data-testid*="convo-pill"], [data-testid*="project"]').forEach(el => {
+        if (skipVis || el.offsetParent !== null || (el.getClientRects && el.getClientRects().length > 0)) {
           visible.push(el);
         }
       });
       // cursor-pointer elements — filter by text length to skip content containers
-      // Exception: elements with onclick handler are definitively interactive
       root.querySelectorAll('[class*="cursor-pointer"]').forEach(el => {
-        if ((skipVis || el.offsetParent !== null) && !visible.includes(el)) {
+        if ((skipVis || el.offsetParent !== null || (el.getClientRects && el.getClientRects().length > 0)) && !visible.includes(el)) {
           const hasHandler = typeof el.onclick === 'function';
           if (maxLen && (el.textContent || '').trim().length > maxLen && !hasHandler) return;
           visible.push(el);
