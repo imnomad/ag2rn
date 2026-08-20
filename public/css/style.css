@@ -295,14 +295,20 @@ body {
   flex: 1 1 0% !important;
   min-height: 0 !important;
   height: auto !important;
+  padding: 0 !important;
+  gap: 0 !important;
+  margin: 0 !important;
   overflow: hidden !important;
 }
 
 #left-sidebar-content [data-testid="conversation-list-sidebar"] {
   display: block !important;
+  position: relative !important;
   flex: 1 1 0% !important;
   height: 100% !important;
   min-height: 0 !important;
+  padding: 0 8px !important;
+  margin: 0 !important;
   overflow-y: auto !important;
   overflow-x: hidden !important;
   -webkit-overflow-scrolling: touch !important;
@@ -315,9 +321,22 @@ body {
   width: 100% !important;
 }
 
+/* Ensure data-index=0 (Projects header) does not stick over and cover top conversations */
+#left-sidebar-content [data-index="0"] {
+  position: absolute !important;
+  top: 0px !important;
+  left: 0px !important;
+  height: 28px !important;
+  z-index: 2 !important;
+}
+
 #left-sidebar-content [data-index] {
+  position: absolute !important;
+  left: 0px !important;
+  width: 100% !important;
   visibility: visible !important;
   opacity: 1 !important;
+  pointer-events: auto !important;
 }
 
 #left-sidebar-content .text-foreground,
