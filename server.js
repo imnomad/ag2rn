@@ -880,11 +880,9 @@ function startPolling() {
           JSON.stringify(snapshot.modelQuota || '')
         );
 
-        // Check if agent just finished responding -> force model quota refresh
+        // Check if agent just finished responding -> refresh model quota invisibly
         if (cachedSnapshot?.agentRunning === true && snapshot.agentRunning === false && cdpClient) {
-          cdpClient.Runtime.evaluate({
-            expression: 'window.__ag2r_force_quota_refresh = true;'
-          }).catch(() => {});
+          fetchModelQuotaViaCDP(true).catch(() => {});
         }
 
         // Only broadcast and update cache when content actually changes
@@ -1331,9 +1329,123 @@ app.post('/restart-antigravity', async (req, res) => {
   }
 });
 
-// --- Model Quota Endpoint ---
-app.get('/api/model-quota', (req, res) => {
-  res.json(cachedSnapshot?.modelQuota || {
+// --- Model Quota Background Fetcher & Endpoint ---
+let lastQuotaFetchTime = 0;
+
+async function fetchModelQuotaViaCDP(force = false) {
+  const now = Date.now();
+  if (!force && now - lastQuotaFetchTime < 60000 && cachedSnapshot?.modelQuota) {
+    return cachedSnapshot.modelQuota;
+  }
+  if (!cdpClient) return cachedSnapshot?.modelQuota || null;
+
+  try {
+    lastQuotaFetchTime = now;
+    const res = await cdpClient.Runtime.evaluate({
+      expression: `(async () => {
+        const prevFocused = document.activeElement;
+        let hideStyle = document.getElementById('__ag2r_quota_hider');
+        if (!hideStyle) {
+          hideStyle = document.createElement('style');
+          hideStyle.id = '__ag2r_quota_hider';
+          hideStyle.textContent = '[role="menu"], [data-radix-popper-content-wrapper], .animate-slideIn { opacity: 0 !important; pointer-events: none !important; visibility: hidden !important; }';
+          document.head.appendChild(hideStyle);
+        }
+
+        try {
+          const trigger = document.querySelector('[data-testid="model-selector-trigger"]');
+          if (!trigger) return null;
+
+          const activeModelText = (trigger.textContent || '').trim();
+          const wasOpen = trigger.getAttribute('aria-expanded') === 'true';
+
+          if (!wasOpen) {
+            trigger.click();
+            await new Promise(r => setTimeout(r, 60));
+          }
+
+          const menu = document.querySelector('[data-testid="model-selector-panel"]');
+          if (menu) {
+            const viewUsage = Array.from(menu.querySelectorAll('[role="menuitem"]')).find(el => (el.textContent || '').includes('View Usage'));
+            if (viewUsage) {
+              viewUsage.focus();
+              viewUsage.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true }));
+              viewUsage.dispatchEvent(new MouseEvent('pointerover', { bubbles: true }));
+              viewUsage.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true }));
+              viewUsage.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+              viewUsage.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+              await new Promise(r => setTimeout(r, 120));
+            }
+
+            const submenus = Array.from(document.querySelectorAll('[role="menu"]'));
+            const usageSubmenu = submenus.find(s => (s.textContent || '').includes('Weekly Limit Remaining') || (s.textContent || '').includes('Gemini Models'));
+
+            const quotaData = {
+              gemini: { weekly: { percentage: 100, refreshText: '' }, fiveHour: { percentage: 100, refreshText: '' } },
+              claudeGpt: { weekly: { percentage: 100, refreshText: '' }, fiveHour: { percentage: 100, refreshText: '' } },
+              activeModel: activeModelText,
+              activeGroup: (activeModelText.toLowerCase().includes('claude') || activeModelText.toLowerCase().includes('gpt')) ? 'claudeGpt' : 'gemini',
+              timestamp: Date.now()
+            };
+
+            if (usageSubmenu) {
+              const groups = Array.from(usageSubmenu.querySelectorAll('[role="group"]'));
+              for (const grp of groups) {
+                const grpText = (grp.textContent || '').toLowerCase();
+                const isGemini = grpText.includes('gemini');
+                const targetKey = isGemini ? 'gemini' : 'claudeGpt';
+
+                const rows = Array.from(grp.children).filter(c => c.getAttribute('role') !== 'presentation' && !c.hasAttribute('data-orientation'));
+                for (const row of rows) {
+                  const rawText = row.textContent || '';
+                  const isWeekly = rawText.includes('Weekly');
+                  const is5h = rawText.includes('Five Hour') || rawText.includes('5-hour') || rawText.includes('5 Hour');
+
+                  const pctSpan = Array.from(row.querySelectorAll('span')).find(s => (s.textContent || '').includes('%'));
+                  const percentage = pctSpan ? parseInt(pctSpan.textContent.replace('%', '').trim(), 10) : 100;
+
+                  let refreshText = '';
+                  const refreshMatch = rawText.match(/fully refresh (in [^.]+)/i);
+                  if (refreshMatch) {
+                    refreshText = refreshMatch[1];
+                  }
+
+                  if (isWeekly) quotaData[targetKey].weekly = { percentage, refreshText };
+                  if (is5h) quotaData[targetKey].fiveHour = { percentage, refreshText };
+                }
+              }
+            }
+
+            if (!wasOpen) {
+              document.body.click();
+            }
+
+            window.__ag2r_cached_model_quota = quotaData;
+            return quotaData;
+          }
+        } finally {
+          if (hideStyle) hideStyle.remove();
+          if (prevFocused && typeof prevFocused.focus === 'function') {
+            prevFocused.focus();
+          }
+        }
+      })()`,
+      awaitPromise: true,
+      returnByValue: true
+    });
+    if (res?.result?.value) {
+      if (cachedSnapshot) cachedSnapshot.modelQuota = res.result.value;
+      return res.result.value;
+    }
+  } catch (e) {
+    console.debug('[Quota] CDP fetch error:', e.message);
+  }
+  return cachedSnapshot?.modelQuota || null;
+}
+
+app.get('/api/model-quota', async (req, res) => {
+  const quota = await fetchModelQuotaViaCDP(req.query.force === 'true');
+  res.json(quota || cachedSnapshot?.modelQuota || {
     gemini: { weekly: { percentage: 100, refreshText: '' }, fiveHour: { percentage: 100, refreshText: '' } },
     claudeGpt: { weekly: { percentage: 100, refreshText: '' }, fiveHour: { percentage: 100, refreshText: '' } },
     activeGroup: 'gemini',
