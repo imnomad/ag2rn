@@ -19,7 +19,7 @@ export function buildInjectScript(safeText, appendMode) {
 
   editor.focus();
 
-  // 2. Clear existing content if not in append mode
+  // 2. Clear previous content if not in append mode
   if (!${appendMode}) {
     const range = document.createRange();
     range.selectNodeContents(editor);
@@ -36,51 +36,27 @@ export function buildInjectScript(safeText, appendMode) {
 
   const textVal = ${safeText};
 
-  // 3. Inject text with full Lexical event lifecycle
+  // 3. Clean single insertion (execCommand natively triggers browser input lifecycle without duplication)
   editor.focus();
-
-  // Dispatch beforeinput (Lexical's primary input listener)
+  let inserted = false;
   try {
-    const beforeInputEv = new InputEvent('beforeinput', {
-      inputType: 'insertText',
-      data: textVal,
-      bubbles: true,
-      cancelable: true,
-      composed: true,
-    });
-    editor.dispatchEvent(beforeInputEv);
+    inserted = document.execCommand('insertText', false, textVal);
   } catch {}
 
-  // Fallback / complement: execCommand insertText
-  try {
-    document.execCommand('insertText', false, textVal);
-  } catch {}
-
-  // Dispatch input event
-  try {
-    const inputEv = new InputEvent('input', {
-      inputType: 'insertText',
-      data: textVal,
-      bubbles: true,
-      composed: true,
-    });
-    editor.dispatchEvent(inputEv);
-  } catch {}
-
-  if (editor.tagName === 'TEXTAREA') {
+  if (!inserted && editor.tagName === 'TEXTAREA') {
     editor.value = textVal;
     editor.dispatchEvent(new Event('input', { bubbles: true }));
     editor.dispatchEvent(new Event('change', { bubbles: true }));
   }
 
-  // Collapse selection to end
+  // Collapse selection to end so nothing remains highlighted
   const sel = window.getSelection();
   if (sel) {
     try { sel.collapseToEnd(); } catch {}
   }
 
-  // Wait 120ms for Lexical/React internal state reconciliation
-  await new Promise(r => setTimeout(r, 120));
+  // Brief pause for Lexical/React internal state reconciliation
+  await new Promise(r => setTimeout(r, 100));
 
   // 4. Locate Send Button
   const findSendButton = () => {
@@ -134,7 +110,7 @@ export function buildInjectScript(safeText, appendMode) {
     if (typeof btn.click === 'function') btn.click();
   }
 
-  // 5. Dispatch native Enter keyboard events directly to editor
+  // 5. Also dispatch native Enter keyboard events directly to editor
   const enterDown = new KeyboardEvent('keydown', {
     key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true, cancelable: true, composed: true, view: window
   });
