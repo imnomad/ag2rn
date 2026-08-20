@@ -165,15 +165,46 @@ export const CAPTURE_SCRIPT = `
     css = ':root{' + themeRules.join(';') + '}\\n' + css;
   }
 
-  // -- 14. Capture LEFT sidebar (bg-sidebar) --
+  // -- 14. Capture LEFT sidebar --
   let leftSidebarHtml = null;
   let sidebarAttentionItems = [];
   try {
-    const leftRoot = document.querySelector('.bg-sidebar') || document.querySelector('[class*="bg-sidebar"]');
+    const findLeftSidebar = () => {
+      // 1. Direct class / tag matches
+      const byClass = document.querySelector('.bg-sidebar, [class*="bg-sidebar"], aside[class*="sidebar"], [data-testid*="left-sidebar"]');
+      if (byClass && (byClass.offsetParent !== null || byClass.getBoundingClientRect().width > 80)) return byClass;
+
+      // 2. Element containing "New Conversation" or "Conversation History"
+      const allButtons = Array.from(document.querySelectorAll('button, div[role="button"]'));
+      const newConvoBtn = allButtons.find(b => {
+        const t = (b.textContent || '').trim().toLowerCase();
+        return t.includes('new conversation') || t.includes('nueva conversación');
+      });
+      if (newConvoBtn) {
+        let p = newConvoBtn.parentElement;
+        for (let i = 0; i < 7 && p; i++) {
+          if (p.textContent && p.textContent.includes('Projects') && p.textContent.includes('Settings')) {
+            return p;
+          }
+          p = p.parentElement;
+        }
+        return newConvoBtn.closest('aside, nav, [class*="sidebar"]') || newConvoBtn.parentElement?.parentElement?.parentElement;
+      }
+
+      // 3. Container containing "Projects" heading and "Settings"
+      const containers = Array.from(document.querySelectorAll('aside, nav, div'));
+      return containers.find(h => {
+        const t = h.textContent || '';
+        return t.includes('Projects') && t.includes('Settings') && h.getBoundingClientRect().width > 120;
+      }) || byClass;
+    };
+
+    const leftRoot = findLeftSidebar();
     if (leftRoot) {
       const leftTagged = tagInteractives(leftRoot, 'left', true, true);
       const leftClone = leftRoot.cloneNode(true);
       untagAll(leftTagged);
+      leftClone.querySelectorAll('style').forEach(s => s.remove());
       leftSidebarHtml = leftClone.outerHTML;
       // Extract conversation IDs that need attention, classified by type.
       // AG uses different status indicators in the sidebar:
