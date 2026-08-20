@@ -1,10 +1,11 @@
 // Click the send/submit button in AG's editor.
-// Used by POST /send-images (image-only sends).
 
 export const CLICK_SEND_BUTTON_SCRIPT = `
   (() => {
-    // Find and click the send/submit button
     const selectors = [
+      'button[data-tooltip-id*="input-send-button"]',
+      'button[data-tooltip-id="input-send-button-cancel-tooltip"]',
+      'button[data-testid="input-send-button"]',
       'button[data-testid="send-button"]',
       'button[aria-label*="send" i]',
       'button[aria-label*="submit" i]',
@@ -12,11 +13,11 @@ export const CLICK_SEND_BUTTON_SCRIPT = `
     let btn = null;
     for (const sel of selectors) {
       btn = document.querySelector(sel);
-      if (btn && btn.offsetParent !== null) break;
+      if (btn && (btn.offsetParent !== null || btn.getClientRects().length > 0)) break;
       btn = null;
     }
     if (!btn) {
-      const arrow = document.querySelector('svg.lucide-arrow-right, svg.lucide-arrow-up');
+      const arrow = document.querySelector('svg.lucide-arrow-right, svg.lucide-arrow-up, svg.lucide-send');
       if (arrow) btn = arrow.closest('button');
     }
     if (btn) {

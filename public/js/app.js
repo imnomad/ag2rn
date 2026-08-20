@@ -377,6 +377,13 @@ function sendVisibility() {
 }
 document.addEventListener('visibilitychange', sendVisibility);
 
+// Periodic backup poll every 2.5 seconds to guarantee live updates
+setInterval(() => {
+  if (document.visibilityState === 'visible') {
+    loadSnapshot();
+  }
+}, 2500);
+
 // ─────────────────────────────────────────────
 // Snapshot Loading & Rendering
 // ─────────────────────────────────────────────

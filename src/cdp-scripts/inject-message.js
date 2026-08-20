@@ -6,49 +6,64 @@ export function buildInjectScript(safeText, appendMode) {
 (async () => {
   // Find the editor (Lexical or generic contenteditable)
   const editorCandidates = document.querySelectorAll(
-    '[data-lexical-editor="true"], [contenteditable="true"][role="textbox"], [contenteditable="true"]'
+    '[data-lexical-editor="true"], #antigravity\\\\.agentSidePanelInputBox [contenteditable="true"], [contenteditable="true"][role="textbox"], [contenteditable="true"], textarea'
   );
 
   // Filter to visible editors, take the last one (usually the input at bottom)
   let editor = null;
   for (const el of editorCandidates) {
-    if (el.offsetParent !== null) editor = el;
+    if (el.offsetParent !== null || el.getClientRects().length > 0) editor = el;
   }
   if (!editor) return { ok: false, reason: 'no_editor' };
 
   editor.focus();
   if (${appendMode}) {
-    // Append mode: move cursor to end (preserve images/existing content)
     const sel = window.getSelection();
-    sel.selectAllChildren(editor);
-    sel.collapseToEnd();
+    if (sel && sel.rangeCount > 0) {
+      sel.collapseToEnd();
+    }
   } else {
-    // Normal mode: clear editor first
     const sel = window.getSelection();
-    sel.selectAllChildren(editor);
-    document.execCommand('delete', false, null);
+    if (sel && sel.selectAllChildren) {
+      try { sel.selectAllChildren(editor); } catch {}
+    }
+    try { document.execCommand('delete', false, null); } catch {}
   }
 
-  // Insert text via clipboard paste to preserve newlines in Lexical editor
   const textVal = ${safeText};
-  const dt = new DataTransfer();
-  dt.setData('text/plain', textVal);
-  const pasteEvent = new ClipboardEvent('paste', {
-    clipboardData: dt, bubbles: true, cancelable: true,
-  });
-  // dispatchEvent returns false if a handler called preventDefault (= paste was handled).
-  // Returns true if no handler caught it (= need fallback).
-  const notHandled = editor.dispatchEvent(pasteEvent);
-  if (notHandled) {
-    // No paste handler caught it — fall back to insertText (single-line only)
-    document.execCommand('insertText', false, textVal);
+
+  let inserted = false;
+  try {
+    const dt = new DataTransfer();
+    dt.setData('text/plain', textVal);
+    const pasteEvent = new ClipboardEvent('paste', {
+      clipboardData: dt, bubbles: true, cancelable: true,
+    });
+    const notHandled = editor.dispatchEvent(pasteEvent);
+    if (!notHandled) inserted = true;
+  } catch {}
+
+  if (!inserted) {
+    try {
+      document.execCommand('insertText', false, textVal);
+      inserted = true;
+    } catch {}
+  }
+
+  if (!inserted && editor.tagName === 'TEXTAREA') {
+    editor.value = textVal;
+    editor.dispatchEvent(new Event('input', { bubbles: true }));
+    editor.dispatchEvent(new Event('change', { bubbles: true }));
   }
 
   // Brief delay for editor to process
-  await new Promise(r => setTimeout(r, 100));
+  await new Promise(r => setTimeout(r, 120));
 
   // Find and click submit button
   const submitSelectors = [
+    'button[data-tooltip-id*="input-send-button"]',
+    'button[data-tooltip-id="input-send-button-cancel-tooltip"]',
+    'button[data-testid="input-send-button"]',
     'button[data-testid="send-button"]',
     'button[aria-label*="send" i]',
     'button[aria-label*="submit" i]',
@@ -57,13 +72,13 @@ export function buildInjectScript(safeText, appendMode) {
   let submitBtn = null;
   for (const sel of submitSelectors) {
     submitBtn = document.querySelector(sel);
-    if (submitBtn && submitBtn.offsetParent !== null) break;
+    if (submitBtn && (submitBtn.offsetParent !== null || submitBtn.getClientRects().length > 0)) break;
     submitBtn = null;
   }
 
   // Fallback: look for arrow icon button near the editor
   if (!submitBtn) {
-    const arrow = document.querySelector('svg.lucide-arrow-right, svg.lucide-arrow-up');
+    const arrow = document.querySelector('svg.lucide-arrow-right, svg.lucide-arrow-up, svg.lucide-send');
     if (arrow) submitBtn = arrow.closest('button');
   }
 
