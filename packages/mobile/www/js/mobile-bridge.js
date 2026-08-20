@@ -3,6 +3,12 @@
 // Handles QR pairing modal, persistent token storage, fetch proxying, and background reconnect
 
 (function () {
+  const isNativeApp = !!window.Capacitor || location.protocol === 'capacitor:' || location.protocol === 'file:';
+  if (!isNativeApp) {
+    // In standard web browser (Safari / Chrome / PWA), we are loaded directly from the server — no proxying needed!
+    return;
+  }
+
   const STORAGE_KEY_URL = 'ag2rn_server_url';
   const STORAGE_KEY_TOKEN = 'ag2rn_auth_token';
   const STORAGE_KEY_DEVICE_ID = 'ag2rn_device_id';
