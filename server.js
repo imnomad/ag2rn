@@ -1814,6 +1814,7 @@ app.post('/send', async (req, res) => {
     log('Send', `Injection result: ${JSON.stringify(result)}`);
     track('message_sent');
     res.json(result || { ok: true });
+    fireBurstCaptures([80, 250, 600, 1200]);
   } catch (e) {
     log('Send', `Injection error: ${e.message}`);
     res.status(500).json({ error: e.message });

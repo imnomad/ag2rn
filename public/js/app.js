@@ -1301,14 +1301,17 @@ async function sendMessage() {
   // Reset scroll-away flag so AG's scroll position syncs immediately on next render
   userScrolledAway = false;
 
-  // Schedule snapshot reloads to pick up the sent message
-  setTimeout(loadSnapshot, 300);
-  setTimeout(loadSnapshot, 800);
-  setTimeout(loadSnapshot, 2000);
+  // Instant snapshot reload so user sees sent/queued message immediately
+  loadSnapshot();
+  setTimeout(loadSnapshot, 150);
+  setTimeout(loadSnapshot, 400);
+  setTimeout(loadSnapshot, 1000);
 
   isSending = false;
   messageInput.disabled = false;
   actionBtn.disabled = false;
+  updateActionButton();
+
   // Clear macro chip after send — AG's editor already has the macro applied
   if (stagedMacro) {
     stagedMacro = null;
