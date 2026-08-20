@@ -335,34 +335,56 @@ body {
   pointer-events: auto !important;
 }
 
+#left-sidebar-content,
+#left-sidebar-content * {
+  box-sizing: border-box;
+}
+
+#left-sidebar-content button,
+#left-sidebar-content a,
+#left-sidebar-content span,
+#left-sidebar-content div,
+#left-sidebar-content h2,
+#left-sidebar-content p {
+  color: #d1d5db;
+}
+
 #left-sidebar-content .text-foreground,
+#left-sidebar-content [class*="text-foreground"],
 .text-foreground {
-  color: var(--foreground) !important;
+  color: #f3f4f6 !important;
 }
 
 #left-sidebar-content .text-secondary-foreground,
+#left-sidebar-content [class*="text-secondary-foreground"],
 .text-secondary-foreground {
-  color: var(--secondary-foreground) !important;
+  color: #e5e7eb !important;
 }
 
 #left-sidebar-content .text-muted-foreground,
+#left-sidebar-content [class*="text-muted-foreground"],
 .text-muted-foreground {
-  color: var(--muted-foreground) !important;
+  color: #9ca3af !important;
+}
+
+#left-sidebar-content svg {
+  color: currentColor !important;
+  fill: currentColor !important;
 }
 
 #left-sidebar-content .bg-sidebar,
 .bg-sidebar {
-  background-color: var(--sidebar) !important;
+  background-color: #121214 !important;
 }
 
 #left-sidebar-content .bg-sidebar-muted,
 .bg-sidebar-muted {
-  background-color: var(--sidebar-muted) !important;
+  background-color: #1c1c1f !important;
 }
 
 #left-sidebar-content .bg-sidebar-secondary,
 .bg-sidebar-secondary {
-  background-color: var(--sidebar-secondary) !important;
+  background-color: #27272a !important;
 }
 
 #left-sidebar-content a,
