@@ -1896,8 +1896,17 @@ async function selectModelSilently(modelValue, modelLabel) {
   }
 }
 
-// Wire modal triggers and dismissals
-document.getElementById('model-chip')?.addEventListener('click', openModelPickerModal);
+// Wire modal triggers and dismissals via global delegation & direct binds
+document.addEventListener('click', (e) => {
+  const modelTrigger = e.target.closest('#model-chip, .model-chip, [data-testid="model-selector-trigger"]');
+  if (modelTrigger) {
+    e.preventDefault();
+    e.stopPropagation();
+    openModelPickerModal();
+    return;
+  }
+});
+
 document.getElementById('model-picker-close')?.addEventListener('click', closeModelPickerModal);
 document.getElementById('model-picker-backdrop')?.addEventListener('click', closeModelPickerModal);
 document.getElementById('model-picker-view-quota')?.addEventListener('click', () => {

@@ -1640,15 +1640,15 @@ body {
 .model-picker-modal {
   position: fixed;
   inset: 0;
-  z-index: 2400;
+  z-index: 3000 !important;
   display: flex;
   align-items: flex-end;
   justify-content: flex-start;
-  padding: 0 0 68px 12px;
+  padding: 0 0 calc(max(68px, var(--safe-bottom) + 60px)) 12px;
 }
 
 .model-picker-modal.hidden {
-  display: none;
+  display: none !important;
 }
 
 .model-picker-card {
