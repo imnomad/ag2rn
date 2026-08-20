@@ -2274,8 +2274,6 @@ function renderSidebar(container, html) {
         el.style.visibility = 'visible';
       }
     });
-
-    }
   }
 }
 
