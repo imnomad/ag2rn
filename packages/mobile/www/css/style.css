@@ -383,6 +383,38 @@ body {
   z-index: auto !important;
 }
 
+/* ── File Changed / Diff Summary Bar Styling (Match Desktop Antigravity) ── */
+#chat-content .rounded-full:has(button),
+#chat-content [class*="border"]:has(button) {
+  border-radius: 12px !important;
+  background: #141415 !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  padding: 8px 14px !important;
+  margin: 8px 0 !important;
+  box-sizing: border-box !important;
+}
+
+#chat-content button[data-ag-click-label*="Review"],
+#chat-content button:has(svg.lucide-file-diff),
+#chat-content button:has(svg.lucide-file-text) {
+  background: rgba(255, 255, 255, 0.06) !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  border-radius: 8px !important;
+  padding: 4px 10px !important;
+  color: #e4e4e7 !important;
+  font-size: 12px !important;
+  font-weight: 500 !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+  transition: background 0.15s !important;
+}
+
+#chat-content button[data-ag-click-label*="Review"]:hover,
+#chat-content button[data-ag-click-label*="Review"]:active {
+  background: rgba(255, 255, 255, 0.14) !important;
+}
+
 /* ── Collapsed Section Fix (Worked for / Thought for) ── */
 /* AG uses mask-image gradients on thinking content for a fade effect.
    This makes text invisible in our context. Remove masks and height caps
