@@ -980,15 +980,13 @@ body {
   border-color: var(--red, #ef4444);
 }
 
-/* ── Queued Messages Container from Antigravity 2.0 ── */
+/* ── Queued Messages Container & Accordion Animation ── */
 .queued-messages-container {
   padding: 6px 12px 2px;
   background: transparent;
   display: flex;
   flex-direction: column;
   gap: 6px;
-  max-height: 240px;
-  overflow-y: auto;
   font-size: 0.85rem;
 }
 
@@ -996,23 +994,41 @@ body {
   display: none !important;
 }
 
-.queued-messages-container > div {
+.queued-messages-card {
   background: #18181b !important;
   border: 1px solid rgba(255, 255, 255, 0.12) !important;
   border-radius: 12px !important;
   padding: 10px 14px !important;
   box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4) !important;
+  cursor: pointer;
+  user-select: none;
+  overflow: hidden;
+  max-height: 85px;
+  transition: max-height 0.35s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
-.queued-messages-container svg {
+.queued-messages-card.expanded {
+  max-height: 480px;
+  overflow-y: auto;
+  border-color: rgba(255, 255, 255, 0.25) !important;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6) !important;
+}
+
+.queued-messages-card svg {
   width: 15px !important;
   height: 15px !important;
   stroke: currentColor !important;
   display: inline-block !important;
   flex-shrink: 0 !important;
+  transition: transform 0.3s ease !important;
 }
 
-.queued-messages-container button {
+.queued-messages-card.expanded svg.lucide-chevron-down,
+.queued-messages-card.expanded [class*="chevron"] {
+  transform: rotate(180deg) !important;
+}
+
+.queued-messages-card button {
   background: transparent !important;
   border: none !important;
   color: #9ca3af !important;
@@ -1027,18 +1043,32 @@ body {
   transition: color 0.15s, background 0.15s !important;
 }
 
-.queued-messages-container button:hover,
-.queued-messages-container button:active {
+.queued-messages-card button:hover,
+.queued-messages-card button:active {
   color: #f3f4f6 !important;
   background: rgba(255, 255, 255, 0.12) !important;
 }
 
-.queued-messages-container p,
-.queued-messages-container span,
-.queued-messages-container div {
+.queued-messages-card p,
+.queued-messages-card span,
+.queued-messages-card div {
   line-height: 1.4 !important;
-  white-space: normal !important;
-  word-break: break-word !important;
+}
+
+.queued-messages-card:not(.expanded) [class*="text"],
+.queued-messages-card:not(.expanded) p {
+  display: -webkit-box;
+  -webkit-line-clamp: 1;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.queued-messages-card.expanded [class*="text"],
+.queued-messages-card.expanded p {
+  display: block;
+  -webkit-line-clamp: unset;
+  overflow: visible;
 }
 
 /* ── Macro Chip Strip (slash commands above input) ── */

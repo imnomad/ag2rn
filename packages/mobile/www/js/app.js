@@ -554,12 +554,20 @@ async function loadSnapshot() {
         if (data.queuedMessagesHtml && data.queuedMessagesHtml !== queuedContainer.dataset.lastHtml) {
           queuedContainer.dataset.lastHtml = data.queuedMessagesHtml;
           queuedContainer.innerHTML = data.queuedMessagesHtml;
+          wireQueuedMessagesCard(queuedContainer);
           addClickProxyHandlers(queuedContainer);
           fixRelativeAssetUrls(queuedContainer);
+        } else if (data.queuedMessagesHtml) {
+          const rootCard = queuedContainer.querySelector('> div') || queuedContainer.firstElementChild;
+          if (rootCard) {
+            rootCard.classList.add('queued-messages-card');
+            rootCard.classList.toggle('expanded', isQueueExpanded);
+          }
         }
         queuedContainer.classList.toggle('hidden', !data.queuedMessagesHtml);
         if (!data.queuedMessagesHtml) {
           queuedContainer.dataset.lastHtml = '';
+          isQueueExpanded = false;
         }
       }
 
@@ -1947,7 +1955,28 @@ let lastSidebarSignature = null;
 let sidebarFetchInFlight = false;
 
 // Image proxy cache: src → dataUrl (survives sidebar open/close, clears on page reload)
-const imageProxyCache = new Map();
+// ─────────────────────────────────────────────
+// Queued Messages Card Accordion Logic
+// ─────────────────────────────────────────────
+let isQueueExpanded = false;
+
+function wireQueuedMessagesCard(container) {
+  if (!container) return;
+  const rootCard = container.querySelector('> div') || container.firstElementChild;
+  if (!rootCard) return;
+
+  rootCard.classList.add('queued-messages-card');
+  rootCard.classList.toggle('expanded', isQueueExpanded);
+
+  rootCard.addEventListener('click', (e) => {
+    // If click was on an action button, let proxy handler process it without collapsing/expanding
+    if (e.target.closest('button') || e.target.closest('[role="button"]') || e.target.hasAttribute('data-ag-click-id') || e.target.closest('[data-ag-click-id]')) {
+      return;
+    }
+    isQueueExpanded = !isQueueExpanded;
+    rootCard.classList.toggle('expanded', isQueueExpanded);
+  });
+}
 
 function fixRelativeAssetUrls(container) {
   const remoteServer = localStorage.getItem('ag2rn_server_url');
