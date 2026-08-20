@@ -1855,19 +1855,24 @@ function openModelPickerModal() {
 
   // Attach click handlers to items
   body.querySelectorAll('.model-picker-item').forEach(btn => {
-    btn.addEventListener('click', async (e) => {
+    btn.onclick = async (e) => {
       e.stopPropagation();
       const modelVal = btn.dataset.modelValue;
       const modelLbl = btn.dataset.modelLabel;
       await selectModelSilently(modelVal, modelLbl);
-    });
+    };
   });
 
   modal.classList.remove('hidden');
+  modal.style.display = 'flex';
 }
 
 function closeModelPickerModal() {
-  document.getElementById('native-model-picker-modal')?.classList.add('hidden');
+  const modal = document.getElementById('native-model-picker-modal');
+  if (modal) {
+    modal.classList.add('hidden');
+    modal.style.display = 'none';
+  }
 }
 
 async function selectModelSilently(modelValue, modelLabel) {
@@ -1900,6 +1905,15 @@ async function selectModelSilently(modelValue, modelLabel) {
 }
 
 // Wire modal triggers and dismissals via global delegation & direct binds
+const mainModelChip = document.getElementById('model-chip');
+if (mainModelChip) {
+  mainModelChip.onclick = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    openModelPickerModal();
+  };
+}
+
 document.addEventListener('click', (e) => {
   const modelTrigger = e.target.closest('#model-chip, .model-chip, [data-testid="model-selector-trigger"]');
   if (modelTrigger) {
@@ -2683,6 +2697,21 @@ function addClickProxyHandlers(container) {
     const tag = el.tagName;
     if (tag !== 'BUTTON' && tag !== 'A' && tag !== 'INPUT' && tag !== 'SELECT' && tag !== 'TEXTAREA') {
       el.style.cursor = 'pointer';
+    }
+
+    // Intercept model selection trigger elements — never proxy them, open local silent modal!
+    const isModelSelector = el.id === 'model-chip' ||
+      el.classList.contains('model-chip') ||
+      el.getAttribute('data-testid') === 'model-selector-trigger' ||
+      (el.getAttribute('aria-label') || '').toLowerCase().includes('select model');
+    if (isModelSelector) {
+      el.removeAttribute('data-ag-click-id');
+      el.onclick = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        openModelPickerModal();
+      };
+      return;
     }
 
     // Skip proxy wiring for TEXTAREA — they need native focus/input behavior.
