@@ -8,11 +8,15 @@ export function buildProxyImageScript(safeSrc) {
       const targetSrc = ${safeSrc};
       const imgs = document.querySelectorAll('img');
       for (const img of imgs) {
-        if (img.src !== targetSrc && img.getAttribute('src') !== targetSrc) continue;
+        const s = img.src || '';
+        const attrS = img.getAttribute('src') || '';
+        if (s !== targetSrc && attrS !== targetSrc && !s.endsWith(targetSrc) && !targetSrc.endsWith(attrS)) {
+          continue;
+        }
         if (!img.complete || img.naturalWidth === 0) continue;
 
         try {
-          const MAX_WIDTH = 800;
+          const MAX_WIDTH = 1920;
           let w = img.naturalWidth;
           let h = img.naturalHeight;
           if (w > MAX_WIDTH) {

@@ -2794,3 +2794,76 @@ body {
 #chat-content .opacity-0:has([aria-label*="Undo"]) {
   opacity: 1 !important;
 }
+
+/* ── Full-Screen Image Viewer Lightbox ── */
+.image-viewer-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 999999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.image-viewer-modal.hidden {
+  display: none !important;
+}
+
+.image-viewer-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.92);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+.image-viewer-wrapper {
+  position: relative;
+  max-width: 95vw;
+  max-height: 90vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2;
+}
+
+.image-viewer-img {
+  max-width: 95vw;
+  max-height: 85vh;
+  object-fit: contain;
+  border-radius: 12px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.8);
+  touch-action: pinch-zoom;
+}
+
+.image-viewer-close {
+  position: absolute;
+  top: -48px;
+  right: 0;
+  background: rgba(255, 255, 255, 0.18);
+  border: none;
+  border-radius: 50%;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  cursor: pointer;
+  z-index: 3;
+  transition: background 0.15s;
+}
+
+.image-viewer-close:active {
+  background: rgba(255, 255, 255, 0.35);
+}
+
+#chat-content img {
+  cursor: pointer !important;
+  border-radius: 8px;
+  transition: transform 0.15s ease, filter 0.15s ease;
+}
+
+#chat-content img:active {
+  transform: scale(0.98);
+}

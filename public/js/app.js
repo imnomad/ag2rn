@@ -569,6 +569,7 @@ async function loadSnapshot() {
       // Wire up click proxying for interactive elements
       addClickProxyHandlers(chatContent);
       fixRelativeAssetUrls(chatContent);
+      proxyChatImages(chatContent);
     }
 
     // Update model chip in input bar from server-extracted name (existing conversations)
@@ -1953,6 +1954,68 @@ function fixRelativeAssetUrls(container) {
     const src = img.getAttribute('src') || '';
     if (src.startsWith('/') && !src.startsWith('//')) {
       img.src = `${remoteServer}${src}`;
+    }
+  }
+}
+
+// Full-screen Image Viewer Lightbox Logic
+function openImageViewer(src) {
+  const modal = document.getElementById('image-viewer-modal');
+  const img = document.getElementById('image-viewer-img');
+  if (!modal || !img || !src) return;
+  img.src = src;
+  modal.classList.remove('hidden');
+}
+
+function closeImageViewer() {
+  const modal = document.getElementById('image-viewer-modal');
+  if (!modal) return;
+  modal.classList.add('hidden');
+  const img = document.getElementById('image-viewer-img');
+  if (img) img.src = '';
+}
+
+// Wire image viewer modal backdrop and close buttons
+const imageViewerModal = document.getElementById('image-viewer-modal');
+if (imageViewerModal) {
+  const closeBtn = document.getElementById('image-viewer-close');
+  const backdrop = document.getElementById('image-viewer-backdrop');
+  if (closeBtn) closeBtn.addEventListener('click', closeImageViewer);
+  if (backdrop) backdrop.addEventListener('click', closeImageViewer);
+}
+
+// Scan chat for images, proxy local file/blob URLs, and wire full-screen click
+function proxyChatImages(container) {
+  if (!container) return;
+  fixRelativeAssetUrls(container);
+  const imgs = container.querySelectorAll('img');
+  for (const img of imgs) {
+    const src = img.getAttribute('src') || '';
+    if (src.startsWith('blob:') || src.startsWith('file:') || src.startsWith('vscode-file:')) {
+      const cached = imageProxyCache.get(src);
+      if (cached) {
+        img.src = cached;
+      } else {
+        img.dataset.originalSrc = src;
+        fetchAPI(`/proxy-image?src=${encodeURIComponent(src)}`)
+          .then(r => r.json())
+          .then(({ dataUrl }) => {
+            if (dataUrl) {
+              imageProxyCache.set(src, dataUrl);
+              img.src = dataUrl;
+            }
+          })
+          .catch(() => {});
+      }
+    }
+
+    // Attach full-screen lightbox click listener for content images
+    if (!img.dataset.lightboxAttached && !img.src.endsWith('.svg')) {
+      img.dataset.lightboxAttached = '1';
+      img.addEventListener('click', (e) => {
+        e.stopPropagation();
+        openImageViewer(img.src);
+      });
     }
   }
 }
