@@ -1483,11 +1483,12 @@ app.post('/api/select-model', async (req, res) => {
           return { ok: false, error: 'modelSelectorProps not found' };
         }
 
+        const qVal = ${JSON.stringify((modelValue || '').toLowerCase())};
+        const qLbl = ${JSON.stringify((modelLabel || '').toLowerCase())};
+
         const target = modelSelectorProps.modelOptions.find(m => {
-          const val = (m.value || m.modelAlias || '').toLowerCase();
-          const lbl = (m.label || m.name || '').toLowerCase();
-          const qVal = ${JSON.stringify((modelValue || '').toLowerCase())};
-          const qLbl = ${JSON.stringify((modelLabel || '').toLowerCase())};
+          const val = String(m.value ?? m.modelAlias ?? '').toLowerCase();
+          const lbl = String(m.label ?? m.name ?? m.title ?? '').toLowerCase();
           return (qVal && val === qVal) || (qLbl && lbl === qLbl) || (qLbl && lbl.includes(qLbl)) || (qVal && val.includes(qVal));
         });
 
@@ -1496,7 +1497,7 @@ app.post('/api/select-model', async (req, res) => {
         }
 
         modelSelectorProps.setSelectedModel(target);
-        return { ok: true, selected: target.label || target.value };
+        return { ok: true, selected: String(target.label || target.value) };
       })()`,
       returnByValue: true
     });
