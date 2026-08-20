@@ -1376,13 +1376,11 @@ function updateActionButton() {
     // Agent is running and input is empty → show Stop
     actionBtn.setAttribute('data-action', 'stop');
     actionBtn.setAttribute('aria-label', 'Stop generation');
-    actionIcon.textContent = 'stop';
     actionBtn.classList.remove('disabled');
   } else {
     // User is typing or agent is idle → show Send
     actionBtn.setAttribute('data-action', 'send');
     actionBtn.setAttribute('aria-label', 'Send message');
-    actionIcon.textContent = 'arrow_upward';
 
     if (hasText || hasImages) {
       actionBtn.classList.remove('disabled');
@@ -1390,9 +1388,6 @@ function updateActionButton() {
       actionBtn.classList.add('disabled');
     }
   }
-
-  // Quick actions visibility is managed at server update points only,
-  // not here, to prevent user actions (send, type) from causing flicker.
 }
 
 actionBtn.addEventListener('click', () => {

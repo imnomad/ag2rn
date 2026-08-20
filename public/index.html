@@ -150,8 +150,12 @@
               <button id="mic-btn" class="mic-btn" aria-label="Voice input" type="button">
                 <span class="material-symbols-rounded mic-icon">mic</span>
               </button>
-              <button id="action-btn" class="action-btn" data-action="send" aria-label="Send message">
-                <span class="material-symbols-rounded action-icon" id="action-icon">arrow_upward</span>
+              <button id="action-btn" class="action-btn disabled" data-action="send" aria-label="Send message">
+                <svg class="send-arrow-svg" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                  <line x1="12" y1="19" x2="12" y2="5"></line>
+                  <polyline points="5 12 12 5 19 12"></polyline>
+                </svg>
+                <div class="stop-square"></div>
               </button>
             </div>
           </div>

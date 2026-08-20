@@ -1868,47 +1868,84 @@ body {
   display: none;
 }
 
-/* ── Action Button (Send / Stop) ── */
+/* ── Action Button (Send / Stop) Matches Antigravity ── */
 .action-btn {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
+  width: 28px;
+  height: 28px;
+  border-radius: 9999px;
   border: none;
   cursor: pointer;
   flex-shrink: 0;
-  transition: background 0.15s, transform 0.1s;
+  transition: background 0.15s ease, color 0.15s ease, transform 0.1s ease;
+  user-select: none;
+  padding: 0;
 }
 
-.action-btn[data-action="send"] {
-  background: var(--accent);
-  color: white;
-}
-
-.action-btn[data-action="send"]:active {
-  transform: scale(0.92);
-  background: var(--accent-hover);
-}
-
+/* Empty / Disabled State */
 .action-btn[data-action="send"].disabled {
-  background: var(--text-muted);
-  opacity: 0.5;
+  background: #27272a;
+  color: #71717a;
   cursor: default;
+  opacity: 0.6;
 }
 
+.action-btn[data-action="send"].disabled .send-arrow-svg {
+  color: #71717a;
+  stroke: #71717a;
+}
+
+/* Active Send State (with text or attachments) */
+.action-btn[data-action="send"]:not(.disabled) {
+  background: #ffffff;
+  color: #09090b;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
+}
+
+.action-btn[data-action="send"]:not(.disabled) .send-arrow-svg {
+  color: #09090b;
+  stroke: #09090b;
+}
+
+.action-btn[data-action="send"]:not(.disabled):active {
+  transform: scale(0.92);
+  background: #e4e4e7;
+}
+
+/* Stop / Cancel State (Agent Running) */
 .action-btn[data-action="stop"] {
-  background: var(--red);
-  color: white;
+  background: #27272a;
+  color: #ef4444;
 }
 
+.action-btn[data-action="stop"]:hover,
 .action-btn[data-action="stop"]:active {
+  background: #3f3f46;
   transform: scale(0.92);
 }
 
-.action-icon {
-  font-size: 18px;
+.action-btn .send-arrow-svg {
+  width: 15px;
+  height: 15px;
+  display: block;
+}
+
+.action-btn .stop-square {
+  display: none;
+  width: 9px;
+  height: 9px;
+  background: #ef4444;
+  border-radius: 2px;
+}
+
+.action-btn[data-action="stop"] .send-arrow-svg {
+  display: none;
+}
+
+.action-btn[data-action="stop"] .stop-square {
+  display: block;
 }
 
 
