@@ -2512,6 +2512,16 @@ function renderNewSessionPage(container, data) {
 // The real input is the moved input-wrapper from the footer.
 function processNewSessionCapture(zone) {
   hideAgDuplicateControls(zone);
+
+  // Wire model selector triggers in new session page to open native silent modal
+  zone.querySelectorAll('[data-testid="model-selector-trigger"]').forEach(el => {
+    el.removeAttribute('data-ag-click-id');
+    el.addEventListener('click', (e) => {
+      e.stopPropagation();
+      e.preventDefault();
+      openModelPickerModal();
+    });
+  });
 }
 
 
