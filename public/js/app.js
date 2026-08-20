@@ -1431,6 +1431,32 @@ messageInput.addEventListener('input', () => {
   updateActionButton();
 });
 
+// Focus handler: keep input bar immediately pinned above keyboard
+messageInput.addEventListener('focus', () => {
+  requestAnimationFrame(() => {
+    if (window.visualViewport) {
+      const vv = window.visualViewport;
+      const app = document.querySelector('.app');
+      if (app) {
+        app.style.height = vv.height + 'px';
+        app.style.top = (vv.offsetTop || 0) + 'px';
+      }
+    }
+    inputBar.scrollIntoView({ block: 'end' });
+  });
+  setTimeout(() => {
+    if (window.visualViewport) {
+      const vv = window.visualViewport;
+      const app = document.querySelector('.app');
+      if (app) {
+        app.style.height = vv.height + 'px';
+        app.style.top = (vv.offsetTop || 0) + 'px';
+      }
+    }
+    inputBar.scrollIntoView({ block: 'end' });
+  }, 100);
+});
+
 // Desktop: Enter to send (Shift+Enter for newline)
 // Mobile: Enter inserts newline (user taps send button)
 let lastEnterSend = 0;
@@ -2946,16 +2972,29 @@ function updateEmptyState(subtitle) {
 }
 
 // ─────────────────────────────────────────────
-// Virtual Keyboard Handling
+// Virtual Keyboard Handling (iOS & Android)
 // ─────────────────────────────────────────────
 if (window.visualViewport) {
   function handleViewportResize() {
-    const vh = window.visualViewport.height;
-    // Adjust body height when keyboard opens/closes
-    document.body.style.height = vh + 'px';
-    // Keep comment modals within visible area so keyboard doesn't cover actions
-    for (const modal of document.querySelectorAll('.comment-modal')) {
+    const vv = window.visualViewport;
+    const vh = vv.height;
+    const top = vv.offsetTop || 0;
+
+    const app = document.querySelector('.app');
+    if (app) {
+      app.style.height = vh + 'px';
+      app.style.top = top + 'px';
+    }
+
+    // Keep modals within visible area
+    for (const modal of document.querySelectorAll('.comment-modal, .quota-modal, .model-picker-modal')) {
       modal.style.height = vh + 'px';
+      modal.style.top = top + 'px';
+    }
+
+    const active = document.activeElement;
+    if (active && (active.id === 'message-input' || active.tagName === 'TEXTAREA' || active.tagName === 'INPUT')) {
+      inputBar.scrollIntoView({ block: 'end' });
     }
   }
 
