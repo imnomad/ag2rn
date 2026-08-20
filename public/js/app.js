@@ -548,6 +548,20 @@ async function loadSnapshot() {
         }
       }
 
+      // Render captured Queued Messages from Antigravity 2.0
+      const queuedContainer = document.getElementById('queued-messages-container');
+      if (queuedContainer) {
+        if (data.queuedMessagesHtml && data.queuedMessagesHtml !== queuedContainer.dataset.lastHtml) {
+          queuedContainer.dataset.lastHtml = data.queuedMessagesHtml;
+          queuedContainer.innerHTML = data.queuedMessagesHtml;
+          addClickProxyHandlers(queuedContainer);
+          fixRelativeAssetUrls(queuedContainer);
+        }
+        queuedContainer.classList.toggle('hidden', !data.queuedMessagesHtml);
+        if (!data.queuedMessagesHtml) {
+          queuedContainer.dataset.lastHtml = '';
+        }
+      }
 
       // Add mobile copy buttons to code blocks (deferred to avoid forced reflow after innerHTML)
       requestAnimationFrame(() => addMobileCopyButtons());

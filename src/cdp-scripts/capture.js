@@ -655,6 +655,38 @@ export const CAPTURE_SCRIPT = `
     console.debug('[AG2R] BTW capture error:', e.message);
   }
 
-  return { html, css, agentRunning, scrollInfo, leftSidebarHtml, sidebarAttentionItems, sidebarSignature, isSidebarOpen, isNewSessionPage, isInputBoxHidden, isSubagentView, parentConversationName, subagentInfoHtml, dropdownHtml, dialogHtml, settingsHtml, activeArtifactUri, activeFileUri, askQuestionHtml, permissionHtml, environmentName, branchName, modelName, btwHtml };
+  // -- 13. Detect and capture Queued Messages --
+  let queuedMessagesHtml = null;
+  try {
+    const queueCandidates = Array.from(document.querySelectorAll(
+      '[data-testid*="queue"], [class*="queued"], [aria-label*="queued" i], [aria-label*="queue" i]'
+    )).filter(el => {
+      const text = (el.textContent || '').toLowerCase();
+      return (text.includes('queue') || text.includes('cola')) && el.offsetParent !== null;
+    });
+
+    const inputBox = document.getElementById('antigravity.agentSidePanelInputBox') || document.querySelector('[data-lexical-editor]');
+    let inputParent = inputBox;
+    for (let i = 0; i < 4 && inputParent; i++) {
+      const queuedEl = inputParent.querySelector('[class*="queue"], [data-testid*="queue"]');
+      if (queuedEl && !queueCandidates.includes(queuedEl)) {
+        queueCandidates.push(queuedEl);
+      }
+      inputParent = inputParent.parentElement;
+    }
+
+    if (queueCandidates.length > 0) {
+      const qEl = queueCandidates[0];
+      const tagged = tagInteractives(qEl, 'queue', true, true);
+      const clone = qEl.cloneNode(true);
+      untagAll(tagged);
+      clone.querySelectorAll('style').forEach(s => s.remove());
+      queuedMessagesHtml = clone.outerHTML;
+    }
+  } catch (e) {
+    console.debug('[AG2R] Queued messages capture error:', e.message);
+  }
+
+  return { html, css, agentRunning, scrollInfo, leftSidebarHtml, sidebarAttentionItems, sidebarSignature, isSidebarOpen, isNewSessionPage, isInputBoxHidden, isSubagentView, parentConversationName, subagentInfoHtml, dropdownHtml, dialogHtml, settingsHtml, activeArtifactUri, activeFileUri, askQuestionHtml, permissionHtml, environmentName, branchName, modelName, btwHtml, queuedMessagesHtml };
 })()
 `;

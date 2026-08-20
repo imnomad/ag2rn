@@ -155,6 +155,29 @@ export function buildMainClickScript(safeClickId, safeLabel) {
           return { ok: false, reason: 'perm_index_out_of_range', total: permEls.length };
         }
         return { ok: false, reason: 'no_permission_banner' };
+      } else if (source === 'queue') {
+        let queueRoot = document.querySelector('[data-testid*="queue"], [class*="queued"], [aria-label*="queued" i], [aria-label*="queue" i]');
+        if (!queueRoot) {
+          const inputBox = document.getElementById('antigravity.agentSidePanelInputBox') || document.querySelector('[data-lexical-editor]');
+          let parent = inputBox;
+          for (let i = 0; i < 4 && parent; i++) {
+            const q = parent.querySelector('[class*="queue"], [data-testid*="queue"]');
+            if (q) { queueRoot = q; break; }
+            parent = parent.parentElement;
+          }
+        }
+        if (queueRoot) {
+          const qEls = [];
+          queueRoot.querySelectorAll('button, a, [role="button"], [class*="cursor-pointer"]').forEach(el => qEls.push(el));
+          if (idx >= 0 && idx < qEls.length) {
+            const target = qEls[idx];
+            const actualLabel = (target.textContent || '').trim().substring(0, 50);
+            target.click();
+            return { ok: true, label: actualLabel, source: 'queue' };
+          }
+          return { ok: false, reason: 'queue_index_out_of_range', total: qEls.length };
+        }
+        return { ok: false, reason: 'no_queue_container' };
       } else if (source === 'task') {
         // Running tasks: find task section and click the Nth button
         const inputBox = document.getElementById('antigravity.agentSidePanelInputBox');
