@@ -410,6 +410,13 @@ export function buildMainClickScript(safeClickId, safeLabel) {
         }
       }
 
+      // Auto-dismiss open Radix popovers on desktop after dropdown/dialog choice
+      if (source === 'dropdown' || source === 'dialog') {
+        setTimeout(() => {
+          document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', code: 'Escape', bubbles: true }));
+        }, 60);
+      }
+
       return { ok: true, label: actualLabel, source, debugNearby };
     })()
 `;
