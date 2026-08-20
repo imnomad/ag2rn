@@ -1019,10 +1019,12 @@ body {
 .input-wrapper {
   display: flex;
   flex-direction: column;
-  background: var(--bg-input);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-lg);
-  padding: 10px 12px 6px;
+  background: #18181b;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 16px;
+  padding: 8px 12px 8px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
 /* Inside the outer card, input-wrapper is the inner dark card (AG: 15px = 16px - 1px inset) */
@@ -1032,7 +1034,8 @@ body {
 }
 
 .input-wrapper:focus-within {
-  border-color: var(--border-subtle);
+  border-color: rgba(255, 255, 255, 0.22);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
   outline: none;
 }
 
@@ -1047,15 +1050,16 @@ body {
   border: none;
   outline: none;
   -webkit-appearance: none;
-  color: var(--text-primary);
+  color: #f3f4f6;
   font-family: var(--font-sans);
   font-size: 15px;
-  line-height: 1.4;
+  line-height: 1.45;
   resize: none;
-  min-height: 63px;
+  min-height: 24px;
   max-height: 120px;
   overflow-y: auto;
-  padding: 0;
+  padding: 2px 0 4px;
+  box-sizing: border-box;
 }
 
 .message-input:focus,
@@ -1066,7 +1070,7 @@ body {
 }
 
 .message-input::placeholder {
-  color: var(--text-muted);
+  color: #71717a;
 }
 
 /* ── Image Preview Strip (staged uploads above input) ── */
@@ -1293,15 +1297,28 @@ body {
   margin-top: 6px;
 }
 
-.input-left-actions,
-.input-right-actions {
+.input-controls {
   display: flex;
   align-items: center;
-  gap: 4px;
+  justify-content: space-between;
+  margin-top: 4px;
+  gap: 8px;
 }
 
 .input-left-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   position: relative;
+  min-width: 0;
+  flex: 1;
+}
+
+.input-right-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
 }
 
 /* ── Attach Button (+) ── */
@@ -1309,25 +1326,26 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 28px;
-  height: 28px;
+  width: 26px;
+  height: 26px;
   border-radius: 50%;
-  border: 1px solid var(--border-subtle);
-  background: transparent;
-  color: var(--text-muted);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.06);
+  color: #a1a1aa;
   cursor: pointer;
   flex-shrink: 0;
-  transition: color 0.15s, background 0.15s, border-color 0.15s;
+  transition: all 0.15s ease;
+  padding: 0;
 }
 
 .attach-btn .material-symbols-rounded {
-  font-size: 18px;
+  font-size: 17px;
 }
 
 .attach-btn:active {
-  background: var(--bg-hover);
-  color: var(--text-primary);
-  border-color: var(--text-muted);
+  background: rgba(255, 255, 255, 0.15);
+  color: #ffffff;
+  border-color: rgba(255, 255, 255, 0.25);
 }
 
 .attach-btn.uploading {
@@ -1355,12 +1373,12 @@ body {
   bottom: 100%;
   left: 0;
   margin-bottom: 4px;
-  background: var(--bg-surface);
-  border: 1px solid var(--border-subtle);
-  border-radius: 10px;
+  background: #18181b;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 12px;
   padding: 4px;
   z-index: 200;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
   min-width: 140px;
 }
 
@@ -1376,90 +1394,94 @@ body {
   padding: 8px 12px;
   border: none;
   background: transparent;
-  color: var(--text-primary);
+  color: #f3f4f6;
   font-size: 13px;
   font-family: var(--font-sans);
-  border-radius: 6px;
+  border-radius: 8px;
   cursor: pointer;
   transition: background 0.1s;
 }
 
 .attach-menu-item:active {
-  background: var(--bg-hover);
+  background: rgba(255, 255, 255, 0.08);
 }
 
 .attach-menu-item .material-symbols-rounded {
   font-size: 18px;
-  color: var(--text-muted);
+  color: #a1a1aa;
 }
 
 /* ── Model Chip ── */
 .model-chip {
-  display: flex !important;
+  display: inline-flex !important;
   align-items: center;
   gap: 4px;
-  padding: 4px 8px;
-  border-radius: 6px;
-  border: none;
-  background: transparent;
-  color: var(--text-primary);
-  font-size: 13px;
+  padding: 3px 8px;
+  border-radius: 9999px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.06);
+  color: #f3f4f6 !important;
+  font-size: 12px;
   font-weight: 500;
   font-family: var(--font-sans);
   cursor: pointer;
-  transition: color 0.15s, background 0.15s;
+  transition: all 0.15s ease;
   white-space: nowrap;
-  max-width: 240px;
+  max-width: 175px;
   overflow: hidden;
-  min-height: 28px;
+  min-height: 26px;
   user-select: none;
+  box-sizing: border-box;
 }
 
 .model-chip:active {
-  background: var(--bg-hover);
-  color: #ffffff;
+  background: rgba(255, 255, 255, 0.14);
+  border-color: rgba(255, 255, 255, 0.25);
 }
 
 .model-chip-text {
   overflow: hidden;
   text-overflow: ellipsis;
-  color: #e4e4e7;
+  color: #f3f4f6 !important;
+  font-size: 12px;
+  font-weight: 500;
 }
 
 .model-chip-chevron {
-  font-size: 16px;
-  color: #a1a1aa;
+  font-size: 15px;
+  color: #a1a1aa !important;
   flex-shrink: 0;
 }
 
 /* ── Model Quota Badges ── */
 .model-quota-badges {
-  display: flex;
+  display: inline-flex;
   align-items: center;
   gap: 4px;
-  margin-left: 2px;
+  flex-shrink: 0;
 }
 
 .quota-badge {
   display: inline-flex;
   align-items: center;
   gap: 3px;
-  padding: 1px 4px;
-  border-radius: 10px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  background: rgba(255, 255, 255, 0.04);
+  padding: 2px 6px;
+  border-radius: 9999px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.05);
   cursor: pointer;
   outline: none;
-  transition: background 0.15s, border-color 0.15s;
+  transition: all 0.15s ease;
 }
 
 .quota-badge:active {
-  background: rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.2);
 }
 
 .quota-svg {
-  width: 14px;
-  height: 14px;
+  width: 13px;
+  height: 13px;
   transform: rotate(-90deg);
   display: block;
 }
@@ -1485,9 +1507,9 @@ body {
 .quota-fill.red { stroke: #ef4444; }
 
 .quota-label {
-  font-size: 10px;
-  font-weight: 500;
-  color: var(--text-secondary);
+  font-size: 10.5px;
+  font-weight: 600;
+  color: #a1a1aa;
   line-height: 1;
 }
 
@@ -2156,16 +2178,16 @@ body {
 .dropdown-content {
   position: relative;
   z-index: 1;
-  background: var(--card, var(--bg-panel, #1c1c2e));
-  border: 1px solid var(--border, #333);
-  border-radius: 12px;
-  padding: 8px;
-  min-width: 200px;
+  background: #18181b;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 14px;
+  padding: 8px 6px;
+  min-width: 240px;
   max-width: 90vw;
-  max-height: 70vh;
+  max-height: 75vh;
   overflow-y: auto;
   margin-bottom: 16px;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.8);
   animation: slideUpDropdown 200ms ease-out;
 }
 
@@ -2179,7 +2201,7 @@ body {
 .dropdown-overlay.model-picker-overlay .dropdown-content {
   background: #18181b !important;
   border: 1px solid rgba(255, 255, 255, 0.12) !important;
-  border-radius: 12px !important;
+  border-radius: 14px !important;
   padding: 6px !important;
   min-width: 260px !important;
   max-width: 340px !important;
@@ -2196,23 +2218,30 @@ body {
   outline: none;
 }
 
-.dropdown-content [data-testid="model-selector-header"] {
+.dropdown-content [data-testid="model-selector-header"],
+.dropdown-content [cmdk-group-heading],
+.dropdown-header {
   font-size: 11px !important;
   font-weight: 600 !important;
   text-transform: uppercase !important;
   letter-spacing: 0.5px !important;
   color: #9ca3af !important;
-  padding: 4px 8px !important;
+  padding: 6px 8px 3px !important;
+  user-select: none;
 }
 
-.dropdown-content [role="menuitem"] {
+.dropdown-content [role="menuitem"],
+.dropdown-content [role="option"],
+.dropdown-content [cmdk-item],
+.dropdown-content [data-radix-collection-item],
+.dropdown-content:not(:has(.ag2r-dialog-native:not(.ag2r-popover-native))) button {
   display: flex !important;
   align-items: center !important;
-  justify-content: space-between !important;
+  justify-content: flex-start !important;
   gap: 8px !important;
-  padding: 7px 10px !important;
+  padding: 8px 10px !important;
   border-radius: 8px !important;
-  font-size: 13px !important;
+  font-size: 13.5px !important;
   color: #f3f4f6 !important;
   cursor: pointer !important;
   transition: background 0.12s ease !important;
@@ -2221,11 +2250,22 @@ body {
   background: transparent !important;
   width: 100% !important;
   user-select: none !important;
+  box-sizing: border-box !important;
 }
 
 .dropdown-content [role="menuitem"]:hover,
 .dropdown-content [role="menuitem"]:active,
-.dropdown-content [role="menuitem"][data-highlighted] {
+.dropdown-content [role="menuitem"][data-highlighted],
+.dropdown-content [role="option"]:hover,
+.dropdown-content [role="option"]:active,
+.dropdown-content [role="option"][data-highlighted],
+.dropdown-content [cmdk-item]:hover,
+.dropdown-content [cmdk-item]:active,
+.dropdown-content [cmdk-item][data-selected="true"],
+.dropdown-content [data-radix-collection-item]:hover,
+.dropdown-content [data-radix-collection-item]:active,
+.dropdown-content:not(:has(.ag2r-dialog-native:not(.ag2r-popover-native))) button:active,
+.dropdown-content:not(:has(.ag2r-dialog-native:not(.ag2r-popover-native))) button:hover {
   background: rgba(255, 255, 255, 0.08) !important;
 }
 
@@ -2253,33 +2293,49 @@ body {
   color: #d1d5db !important;
 }
 
-.dropdown-content [role="menuitem"] svg {
+.dropdown-content svg {
   color: #9ca3af !important;
+  flex-shrink: 0;
 }
 
-.dropdown-content:not(:has(.ag2r-dialog-native)):not(:has([data-testid="model-selector-panel"])) button {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  width: 100%;
-  padding: 12px 16px;
-  border: none;
-  background: transparent;
-  color: var(--text);
-  font-size: 15px;
-  font-family: inherit;
-  border-radius: 8px;
-  cursor: pointer;
-  text-align: left;
+.dropdown-content [cmdk-input],
+.dropdown-content input[type="text"],
+.dropdown-content input[type="search"] {
+  width: 100% !important;
+  padding: 8px 12px !important;
+  background: rgba(255, 255, 255, 0.06) !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  border-radius: 8px !important;
+  color: #f3f4f6 !important;
+  font-size: 13px !important;
+  font-family: inherit !important;
+  outline: none !important;
+  margin-bottom: 6px !important;
+  box-sizing: border-box !important;
 }
 
-.dropdown-content:not(:has(.ag2r-dialog-native)):not(:has([data-testid="model-selector-panel"])) button:active {
-  background: var(--border);
+.dropdown-content [cmdk-input]:focus,
+.dropdown-content input[type="text"]:focus,
+.dropdown-content input[type="search"]:focus {
+  border-color: var(--accent, #3b82f6) !important;
+}
+
+.dropdown-content .truncate,
+.dropdown-content span.truncate {
+  color: #f3f4f6;
+  font-weight: 500;
+  font-size: 13.5px;
+}
+
+.dropdown-content .text-muted-foreground,
+.dropdown-content .opacity-70,
+.dropdown-content .opacity-50 {
+  color: #9ca3af !important;
+  font-size: 11.5px !important;
 }
 
 /* Typeahead dropdown items (slash command picker) — AG renders each item as
-   a flex container with icon + name span + description span. We replicate the
-   layout since AG's Tailwind classes aren't available here. */
+   a flex container with icon + name span + description span. */
 .dropdown-content [role="option"] > .flex {
   display: flex;
   align-items: center;
@@ -2320,21 +2376,17 @@ body {
 }
 
 .dropdown-content:not(:has(.ag2r-dialog-native)) button.destructive {
-  color: #ef4444;
+  color: #ef4444 !important;
 }
 
-.dropdown-separator {
+.dropdown-separator,
+.dropdown-content [role="separator"],
+.dropdown-content hr,
+.dropdown-content .border-t {
   height: 1px;
-  background: var(--border, #333);
+  background: rgba(255, 255, 255, 0.08);
+  border: none;
   margin: 4px 0;
-}
-
-.dropdown-header {
-  padding: 6px 16px 4px;
-  font-size: 12px;
-  font-weight: 500;
-  color: var(--text-muted, #888);
-  user-select: none;
 }
 
 @keyframes slideUpDropdown {
@@ -2384,8 +2436,8 @@ body {
   border-color: #ef4444;
 }
 
-/* ── Native AG Dialog (rendered with AG's CSS) ── */
-.dropdown-content:has(.ag2r-dialog-native) {
+/* ── Native AG Dialog & Popovers (rendered with AG's CSS) ── */
+.dropdown-content:has(.ag2r-dialog-native:not(.ag2r-popover-native)) {
   padding: 0;
   background: transparent;
   border: none;
@@ -2393,6 +2445,17 @@ body {
   min-width: 0;
   max-width: 92vw;
   width: 92vw;
+}
+
+.dropdown-content:has(.ag2r-popover-native) {
+  padding: 8px 6px;
+  background: #18181b !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  border-radius: 14px !important;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.8) !important;
+  min-width: 260px !important;
+  max-width: 400px !important;
+  width: max-content !important;
 }
 
 /* ── Permission Overlay ── */

@@ -7,9 +7,9 @@ export const TAG_INTERACTIVES_FN = `
   function tagInteractives(root, prefix, skipVisibilityCheck, includeCursorPointer, maxTextLength) {
     let idx = 0;
     const tagged = [];
-    // Semantic interactive elements — always tag, no text-length filter
+    // Semantic interactive elements (including Radix UI & cmdk collection items) — always tag, no text-length filter
     root.querySelectorAll(
-      'button, a, [role="button"], [role="option"], [role="menuitem"], [role="menuitemradio"], [role="treeitem"], [data-testid*="convo-pill"], [data-testid*="project"]'
+      'button, a, [role="button"], [role="option"], [role="menuitem"], [role="menuitemradio"], [role="treeitem"], [cmdk-item], [data-radix-collection-item], [data-item], [data-testid*="convo-pill"], [data-testid*="project"]'
     ).forEach(el => {
       if (skipVisibilityCheck || el.offsetParent !== null || (el.getClientRects && el.getClientRects().length > 0)) {
         const text = (el.textContent || '').trim();

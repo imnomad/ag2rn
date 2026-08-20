@@ -319,12 +319,12 @@ export function buildMainClickScript(safeClickId, safeLabel) {
       }
 
       // Build the same interactive element list as capture
-      const skipVis = (source === 'right' || source === 'left' || source === 'settings');
+      const skipVis = (source === 'right' || source === 'left' || source === 'settings' || source === 'dropdown' || source === 'dialog');
       // maxTextLength only applies to cursor-pointer elements (content vs action ambiguity)
-      const maxLen = (source === 'chat') ? 80 : 0;
+      const maxLen = (source === 'chat' || source === 'dropdown' || source === 'dialog') ? 80 : 0;
       const visible = [];
-      // Semantic interactive elements — always include, no text-length filter
-      root.querySelectorAll('button, a, [role="button"], [role="option"], [role="menuitem"], [role="menuitemradio"], [role="treeitem"], [data-testid*="convo-pill"], [data-testid*="project"]').forEach(el => {
+      // Semantic interactive elements (including Radix UI & cmdk collection items) — always include, no text-length filter
+      root.querySelectorAll('button, a, [role="button"], [role="option"], [role="menuitem"], [role="menuitemradio"], [role="treeitem"], [cmdk-item], [data-radix-collection-item], [data-item], [data-testid*="convo-pill"], [data-testid*="project"]').forEach(el => {
         if (skipVis || el.offsetParent !== null || (el.getClientRects && el.getClientRects().length > 0)) {
           visible.push(el);
         }

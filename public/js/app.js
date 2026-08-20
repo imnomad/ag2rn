@@ -667,97 +667,41 @@ async function loadSnapshot() {
       dropdownOverlay.classList.add('hidden');
     }
 
-    // Render dialog modal if AG has one open (e.g., delete confirmation, environment selector)
+    // Render dialog modal if AG has one open (e.g., delete confirmation, environment/worktree selector, project picker)
     if (data.dialogHtml && !suppressOverlay) {
       // Dedup: skip re-render if dialog HTML hasn't changed (prevents flicker from polling)
       if (data.dialogHtml !== dropdownContent.dataset.lastDialogHtml) {
         dropdownContent.dataset.lastDialogHtml = data.dialogHtml;
-      const tempDiv = document.createElement('div');
-      tempDiv.innerHTML = data.dialogHtml;
-      // Extract buttons with click IDs
-      const dialogBtns = tempDiv.querySelectorAll('[data-ag-click-id]');
-      // AG's collapsible section headers ("Worked for 35s", "Thought for 27s", etc.)
-      // are rendered as <button> elements and get captured alongside actual dialog buttons.
-      // Filter them out so only real action buttons (Skip, Submit, options) appear.
-      const AG_SECTION_BUTTON = /^(Worked|Thought|Analyzed|Ran) for\b/i;
-      if (dialogBtns.length > 0) {
-        // Build buttons from tagged interactive elements
-        let buttonsHtml = '';
-        dialogBtns.forEach(btn => {
-          const text = btn.textContent.trim();
-          if (!text) return; // Skip empty buttons (e.g., close X icon)
-          if (AG_SECTION_BUTTON.test(text)) return; // Skip AG collapsible section headers
-          const id = btn.dataset.agClickId;
-          const label = btn.dataset.agClickLabel || text;
-          const isDestructive = text.toLowerCase().includes('delete');
-          const isCancel = text.toLowerCase().includes('cancel');
-          const cls = isDestructive ? 'destructive' : (isCancel ? 'cancel' : '');
-          buttonsHtml += `<button class="${cls}" data-ag-click-id="${id}" data-ag-click-label="${label}">${text}</button>`;
-        });
+        const tempDiv = document.createElement('div');
+        tempDiv.innerHTML = data.dialogHtml;
+        const dialogBtns = tempDiv.querySelectorAll('[data-ag-click-id]');
 
-        // Extract title/message from the dialog — look for section headers or short text nodes
-        const root = tempDiv.firstElementChild;
-        const isPopover = root && root.getAttribute('role') === 'dialog';
-
-        if (isPopover) {
-          // Popover dialog (environment selector, context menus)
-          // Rebuild with section headers and separators from the original HTML
-          let popoverHtml = '';
-          const walker = root.querySelector('[class*="overflow-y-auto"]') || root;
-          for (const child of walker.children) {
-            // Separator
-            if (child.classList.contains('border-t') || child.tagName === 'HR') {
-              popoverHtml += '<div class="dropdown-separator"></div>';
-              continue;
-            }
-            // Section header (e.g. "Previous Worktrees")
-            const isHeader = child.classList.contains('text-muted-foreground') &&
-              child.classList.contains('text-xs') && !child.querySelector('button');
-            if (isHeader) {
-              popoverHtml += `<div class="dropdown-header">${child.textContent.trim()}</div>`;
-              continue;
-            }
-            // Tagged buttons inside this child — find ALL, not just the first
-            const taggedEls = child.querySelectorAll('[data-ag-click-id]');
-            const selfTagged = child.dataset?.agClickId ? [child] : [];
-            const allTagged = taggedEls.length > 0 ? taggedEls : selfTagged;
-            allTagged.forEach(tagged => {
-              const text = tagged.textContent.trim();
-              if (AG_SECTION_BUTTON.test(text)) return; // Skip AG collapsible section headers
-              const id = tagged.dataset.agClickId;
-              const label = tagged.dataset.agClickLabel || text;
-              const isDestructive = /delete|remove/i.test(text);
-              popoverHtml += `<button class="${isDestructive ? 'destructive' : ''}" data-ag-click-id="${id}" data-ag-click-label="${label}">${text}</button>`;
-            });
-          }
-          // Use whichever extraction produced more content — the walker may miss items
-          // when the dialog has nested containers (e.g., project picker wraps items).
-          dropdownContent.innerHTML = (popoverHtml.length >= buttonsHtml.length) ? popoverHtml : (buttonsHtml || popoverHtml);
-        } else {
-          // Modal dialog (undo confirmation, delete, etc.)
-          // Render AG's native HTML directly with AG's CSS applied.
-          // Find the inner dialog card (the visible panel, not the backdrop).
+        if (dialogBtns.length > 0) {
           const root = tempDiv.firstElementChild;
+          const isPopover = root && (
+            root.getAttribute('role') === 'dialog' ||
+            root.hasAttribute('data-radix-popper-content-wrapper') ||
+            !root.className?.toString?.().includes('fixed inset-0')
+          );
+
+          // Find the inner dialog card (the visible panel, not the backdrop)
           let dialogCard = null;
           if (root) {
-            // Walk all descendants to find the card — the deepest element
-            // with rounded corners that contains the action buttons.
             const candidates = root.querySelectorAll('[class*="rounded"]');
             for (const c of candidates) {
               if (c.querySelector('[data-ag-click-id]')) {
                 dialogCard = c;
-                // Don't break — keep going deeper to find the most specific card
               }
             }
           }
-          const dialogInnerHtml = dialogCard ? dialogCard.outerHTML : (root ? root.innerHTML : data.dialogHtml);
+
+          const dialogInnerHtml = dialogCard ? dialogCard.outerHTML : (root ? root.outerHTML : data.dialogHtml);
           dropdownContent.innerHTML = `
             <style>${cdpStyles.textContent || ''}</style>
-            <div class="ag2r-dialog-native">${dialogInnerHtml}</div>
+            <div class="ag2r-dialog-native ${isPopover ? 'ag2r-popover-native' : ''}">${dialogInnerHtml}</div>
           `;
+          addClickProxyHandlers(dropdownContent);
         }
-        addClickProxyHandlers(dropdownContent);
-      }
       }
       // Always keep overlay visible while dialog is active (even on deduped renders)
       dropdownOverlay.classList.remove('hidden');
@@ -2588,6 +2532,19 @@ function hideAgDuplicateControls(zone) {
   });
   zone.querySelectorAll('[aria-label="Add context"], [aria-label="Add Content"]').forEach(el => {
     el.style.display = 'none';
+  });
+  // Hide AG's captured model selector button on new session page because input-wrapper already has #model-chip
+  zone.querySelectorAll('button, [role="button"]').forEach(el => {
+    if (el.closest('.input-wrapper')) return;
+    const t = (el.textContent || '').toLowerCase();
+    const aria = (el.getAttribute('aria-label') || '').toLowerCase();
+    const testId = el.getAttribute('data-testid') || '';
+    const isModelBtn = testId.includes('model') ||
+      aria.includes('model') ||
+      t.includes('gemini') || t.includes('claude') || t.includes('sonnet') || t.includes('gpt-oss') || t.includes('flash') || t.includes('opus');
+    if (isModelBtn) {
+      el.style.display = 'none';
+    }
   });
 }
 

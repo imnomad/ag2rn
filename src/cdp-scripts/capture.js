@@ -380,7 +380,7 @@ export const CAPTURE_SCRIPT = `
 
         // Dropdown menu (role="listbox", role="menu", Radix menu)
         if (!dropdownHtml && isMenuOrListbox) {
-          const tagged = tagInteractives(target, 'dropdown', true, false);
+          const tagged = tagInteractives(target, 'dropdown', true, true, 80);
           const clone = target.cloneNode(true);
           untagAll(tagged);
           dropdownHtml = clone.outerHTML;
@@ -389,7 +389,7 @@ export const CAPTURE_SCRIPT = `
         // Dialog/modal (fixed overlay with buttons)
         const cls = (target.className || '').toString();
         if (!dialogHtml && cls.includes('fixed') && cls.includes('inset-0')) {
-          const tagged = tagInteractives(target, 'dialog', true, false);
+          const tagged = tagInteractives(target, 'dialog', true, true, 80);
           const clone = target.cloneNode(true);
           untagAll(tagged);
           clone.querySelectorAll('style').forEach(s => s.remove());
@@ -398,7 +398,7 @@ export const CAPTURE_SCRIPT = `
 
         // Popover dialog (role="dialog" portal, e.g. environment selector, context menus)
         if (!dialogHtml && (target.getAttribute('role') === 'dialog' || target.hasAttribute('data-radix-popper-content-wrapper'))) {
-          const tagged = tagInteractives(target, 'dialog', true, false);
+          const tagged = tagInteractives(target, 'dialog', true, true, 80);
           const clone = target.cloneNode(true);
           untagAll(tagged);
           clone.querySelectorAll('style').forEach(s => s.remove());
