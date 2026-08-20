@@ -4,42 +4,76 @@
 [![Platform](https://img.shields.io/badge/Platform-Windows%20|%20macOS%20|%20Linux%20|%20iOS%20|%20Android-green?style=for-the-badge)](#-system-architecture)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](./LICENSE)
 
-**AG2RN** (*Antigravity 2.0 Remote Native*) is a complete native cross-platform companion and remote bridge suite for **Google Antigravity 2.0**. It allows developers to monitor autonomous AI coding sessions, review implementation plans, answer interactive interview questions, approve terminal command executions, and chat with their AI agents directly from their **iOS** and **Android** mobile devices or desktop companion from anywhere in the world.
+**AG2RN** (*Antigravity 2.0 Remote Native*) is a native cross-platform companion and remote bridge suite engineered for **Google Antigravity 2.0**. It empowers developers to monitor autonomous AI coding agents, approve terminal command executions, answer interactive design questions, switch AI models with live quota tracking, review git diffs, and chat directly with their agent sessions from **iOS**, **Android**, and desktop environments from anywhere in the world.
 
 ---
 
+## 📱 Mobile Experience & Showcase (9:16)
+
 <table align="center">
   <tr>
-    <td align="center"><img src="docs/chat-implementation-plan-card.png" alt="Live Chat & Plan Approval" width="160" /><br><sub>Live Chat & Plan Approval</sub></td>
-    <td align="center"><img src="docs/code-diff-view.png" alt="Code Review" width="160" /><br><sub>Code Review & Diffs</sub></td>
-    <td align="center"><img src="docs/command-permission-overlay.png" alt="Command Approvals" width="160" /><br><sub>Command Approvals</sub></td>
-    <td align="center"><img src="docs/ask-question-choices.png" alt="Interactive Questions" width="160" /><br><sub>Interactive Questions</sub></td>
-    <td align="center"><img src="docs/push-notification-native.png" alt="Native Push Notifications" width="160" /><br><sub>Push Notifications</sub></td>
+    <td align="center" width="33%">
+      <img src="docs/mobile-chat-plan.jpg" alt="Live Chat & Plan Approval" width="220" /><br>
+      <b>Live Chat & Plan Approval</b><br>
+      <sub>Real-time reasoning logs & 1-tap plan approval</sub>
+    </td>
+    <td align="center" width="33%">
+      <img src="docs/mobile-model-picker.jpg" alt="14-Model Selector & Quota" width="220" /><br>
+      <b>14-Model Selector & Quota</b><br>
+      <sub>Real-time usage rings for Gemini, Claude & GPT</sub>
+    </td>
+    <td align="center" width="33%">
+      <img src="docs/mobile-permission-approval.jpg" alt="Command Approvals" width="220" /><br>
+      <b>Terminal Permission Approvals</b><br>
+      <sub>Remote shell execution authorization & safety</sub>
+    </td>
+  </tr>
+  <tr>
+    <td align="center" width="33%">
+      <img src="docs/mobile-code-review.jpg" alt="Code Review & Diff Canvas" width="220" /><br>
+      <b>Code Review & Diff Canvas</b><br>
+      <sub>Syntax-highlighted line diffs & file trees</sub>
+    </td>
+    <td align="center" width="33%">
+      <img src="docs/mobile-ask-question.jpg" alt="Interactive Agent Interviews" width="220" /><br>
+      <b>Interactive Interviews</b><br>
+      <sub>Answer <code>ask_question</code> choice chips & prompts</sub>
+    </td>
+    <td align="center" width="33%">
+      <img src="docs/mobile-qr-pairing.jpg" alt="QR Pairing & Biometrics" width="220" /><br>
+      <b>QR Pairing & Biometrics</b><br>
+      <sub>Instant camera pairing & Face ID encryption</sub>
+    </td>
   </tr>
 </table>
 
 ---
 
-## 🌟 What is AG2RN?
+## 🚀 Key Improvements & What's New in this Fork
 
-Unlike standard web wrappers or terminal scripts, **AG2RN** is an integrated multi-tier software ecosystem built for modern developer workflows:
+AG2RN is an advanced evolution and native rewrite of the original AG2R bridge, restructured from the ground up for production-grade mobile security, modern desktop control, and full compatibility with Antigravity 2.0:
 
-1. **🖥️ Desktop Control Center (Windows, macOS, Linux):**
-   * Lightweight desktop application with a visual dashboard and **System Tray** integration.
-   * **Automatic detection** of Antigravity 2.0 executable installations and active CDP ports (`DevToolsActivePort`).
-   * **1-Click Launch & Auto-Attach:** Starts and manages Antigravity 2.0 with `--remote-debugging-port` transparently.
-   * **Embedded Zero-Config Tunneling:** Integrated Cloudflare Quick Tunnel and local network discovery for zero-port-forwarding connectivity.
-   * **QR Pairing Protocol:** Generate secure, ephemeral QR codes to link your mobile devices in under 3 seconds.
+### 1. 🖥️ Desktop Control Center (Electron + Tray)
+* **Visual Dashboard & System Tray:** Run AG2RN quietly in the background on Windows, macOS, or Linux.
+* **Auto-Discovery & Auto-Attach:** Automatically detects Antigravity 2.0 executable paths and `DevToolsActivePort` (port 9000 or dynamic). Launches with `--remote-debugging-port` with 1 click.
+* **Embedded Tunneling Daemon:** Built-in Cloudflare Quick Tunnel and local network discovery for zero-port-forwarding pairing.
+* **Ephemeral QR Pairing:** Generates signed pairing payloads with rotating security tokens.
 
-2. **📱 Native Mobile Companion Apps (iOS & Android):**
-   * **Integrated QR Scanner:** Point your camera to pair instantly with your desktop host.
-   * **Biometric Authentication:** Secure your session with **Face ID**, **Touch ID**, or **Fingerprint Unlock**.
-   * **Secure Credential Vault:** Authorization tokens encrypted within **iOS Keychain** and **Android Keystore**.
-   * **Actionable Native Push Notifications (APNs / FCM):** Approve or reject terminal commands and review agent questions directly from your lock screen without opening the app.
-   * **Real-time Synchronization:** View live reasoning streams, step-by-step implementation plans, code diffs, and queued messages.
+### 2. 📱 Native Mobile Companion Suite (iOS & Android)
+* **True Native Runtime:** Built on Capacitor with custom Swift (iOS) and Kotlin (Android) plugins.
+* **Biometric Hardware Security:** Protected by **Face ID**, **Touch ID**, or **Android Biometrics**.
+* **Encrypted Token Vault:** Cryptographic credentials stored securely inside **iOS Keychain** and **Android Keystore**.
+* **In-App QR Scanner:** Point your smartphone camera at the desktop dashboard to establish a secure TLS session in under 3 seconds.
 
-3. **☁️ Serverless Push Gateway (Cloudflare Worker / Edge):**
-   * **Stateless Zero-Knowledge architecture:** Delivers APNs and FCM notifications without storing user code, session content, or private keys.
+### 3. ☁️ Serverless Push Notification Gateway
+* **Actionable Remote Alerts:** Receive immediate lock-screen push notifications (APNs / FCM) when an agent requires terminal command approval or answers.
+* **Zero-Knowledge Privacy:** Edge-deployed Cloudflare Worker dispatches notifications without storing code, session logs, or private keys.
+
+### 4. 🧠 Deep Antigravity 2.0 CDP Engine & UI Fidelity
+* **Radix UI & `cmdk` Modal Support:** Native capture and index-based click dispatching for Radix popovers, command items (`[cmdk-item]`, `[data-radix-collection-item]`), and dropdown menus.
+* **14-Model Selector with Quota Rings:** Native support for the full Antigravity model catalog (Gemini 2.0 Flash, Claude 3.7 Sonnet Thinking, GPT-4o, etc.) with real-time percentage quota rings.
+* **Optimistic Code Review Panel:** Instant slide-out review panel with cached diff rendering and stale-snapshot suppression.
+* **Interactive Approvals (`ask_question` & Permissions):** Clean mobile modals to submit option choices or allow/reject shell operations.
 
 ---
 
@@ -77,40 +111,40 @@ Unlike standard web wrappers or terminal scripts, **AG2RN** is an integrated mul
 
 ---
 
-## 🚀 Quickstart (Development & Setup)
+## 🚀 Quickstart Guide
 
 ### Prerequisites
 - **Node.js 18+**
-- **Google Antigravity 2.0** installed on your system
+- **Google Antigravity 2.0** installed
 
-### 1. Clone the Repository
+### 1. Installation
 ```bash
 git clone https://github.com/imnomad/ag2rn.git
 cd ag2rn
 npm install
 ```
 
-### 2. Start the Core Server
+### 2. Start the Server
 ```bash
-# Starts the Express + WebSocket bridge server with cross-platform auto-detection
+# Starts the core bridge server with auto-port detection and local TLS
 npm start
 ```
 
 ### 3. Launch Desktop Control Center
 ```bash
-# Launches the Electron desktop UI with System Tray support
+# Launches the desktop dashboard with System Tray and QR pairing display
 npm run desktop
 ```
 
-### 4. Build Mobile Web Distribution
+### 4. Build Mobile Companion
 ```bash
-# Syncs web assets to the Capacitor mobile client directory
+# Synchronizes mobile assets for iOS & Android
 npm run mobile:build
 ```
 
-### 5. Run Unit Tests
+### 5. Run Test Suite
 ```bash
-# Executes lifecycle detection, pairing protocol, and tunnel tests
+# Validates lifecycle detection, pairing security, and CDP core
 npm test
 ```
 
@@ -123,57 +157,32 @@ ag2rn/
 ├── packages/
 │   ├── core/                  # CDP capture engine, WebSocket bridge, lifecycle & pairing
 │   │   ├── src/
-│   │   │   ├── cdp-scripts/   # DOM injection scripts evaluated in Antigravity 2.0
-│   │   │   ├── lifecycle/     # Process detection and launcher (Win, macOS, Linux)
-│   │   │   ├── tunnel/        # Cloudflare & local network tunnel discovery
-│   │   │   └── pairing/       # Ephemeral token generation and QR payload builder
-│   │   └── test/              # Unit tests for core lifecycle and pairing
+│   │   │   ├── cdp-scripts/   # Browser-side scripts evaluated in Antigravity via CDP
+│   │   │   ├── lifecycle/     # OS-specific process detection (Windows, macOS, Linux)
+│   │   │   ├── tunnel/        # Cloudflare tunnel & local IP discovery
+│   │   │   └── pairing/       # Ephemeral token cryptography & QR payload builder
+│   │   └── test/              # Lifecycle and pairing test suite
 │   │
-│   ├── desktop/               # Desktop application (Electron + Dashboard UI + System Tray)
-│   │   ├── src/
-│   │   │   └── main.js        # Electron main process, tray menu, and single-instance lock
-│   │   └── package.json
+│   ├── desktop/               # Desktop application (Electron + Tray + Control Panel)
+│   │   └── src/main.js        # Electron process lifecycle & tray menu
 │   │
-│   ├── mobile/                # Native mobile companion (Capacitor iOS & Android)
-│   │   ├── ios/               # Native Xcode / Swift workspace (APNs, Keychain, Face ID)
-│   │   ├── android/           # Native Android Studio project (FCM, Keystore, Biometrics)
-│   │   ├── www/               # Synchronized mobile distribution assets
-│   │   └── build-mobile.js    # Asset synchronization build script
+│   ├── mobile/                # Native Mobile Companion (Capacitor iOS & Android)
+│   │   ├── ios/               # Xcode project (Face ID, Keychain, APNs)
+│   │   ├── android/           # Android Studio project (Biometrics, Keystore, FCM)
+│   │   ├── www/               # Synchronized mobile distribution web assets
+│   │   └── build-mobile.js    # Mobile asset build script
 │   │
-│   └── push-gateway/          # Stateless Serverless Gateway for APNs & FCM push alerts
-│       ├── src/
-│       │   └── index.js       # Cloudflare Worker / Edge push dispatcher
-│       └── wrangler.toml
+│   └── push-gateway/          # Stateless Push Notification Gateway (Cloudflare Worker)
+│       └── src/index.js       # Edge push dispatcher for APNs & FCM
 │
-├── public/                    # Web client assets, Dashboard UI, icons and styles
+├── public/                    # Web client assets, dashboard UI, icons and styles
 ├── server.js                  # Main server entrypoint (Express + WebSocket + CDP Bridge)
 └── README.md
 ```
 
 ---
 
-## 📱 Key Capabilities
-
-* **Real-time Monitoring:** Watch agent responses, step-by-step thinking logs, and background subagent tasks as they happen.
-* **Remote Terminal Permission Approvals:** Authorize or deny dangerous command execution on your host terminal from your phone.
-* **Interactive Interviews (`ask_question`):** Answer clarifying questions by tapping pre-defined choice chips or typing custom answers.
-* **Code Diff Reviewer:** Inspect file diffs with syntax highlighting and collapsible changes before commits are made.
-* **Antigravity Slash Commands:** Trigger specialized workflows such as `/btw` side-questions, `/grill-me` interviews, and `/teamwork-preview`.
-* **Actionable Native Push Notifications:** Receive instant lock-screen alerts whenever an agent requests terminal permissions or design feedback.
-
----
-
-## 🗺️ Roadmap
-
-- [x] **Phase 1:** Multi-OS Core Engine (Antigravity 2.0 detection on Windows, macOS, Linux + QR Protocol).
-- [x] **Phase 2:** Desktop Control Center with System Tray, embedded tunneling, and QR dashboard.
-- [x] **Phase 3:** Native Mobile Companion for **iOS** and **Android** with Capacitor and Biometric security.
-- [x] **Phase 4:** Serverless Push Notification Gateway (APNs + FCM with interactive notifications).
-- [ ] **Phase 5:** Distribution packaging for Apple App Store and Google Play Store.
-
----
-
 ## 📄 License
 
-MIT License — see [LICENSE](./LICENSE) for details.
-Based on and evolved from [AG2R](https://github.com/the-future-company/ag2r).
+MIT License — see [LICENSE](./LICENSE) for details.  
+Original inspiration and CDP bridge foundation from [AG2R](https://github.com/the-future-company/ag2r).
