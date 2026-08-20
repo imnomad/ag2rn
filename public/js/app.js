@@ -2228,11 +2228,14 @@ function renderSidebar(container, html) {
       '<span$1>$2</span>'
     );
     container.innerHTML = html;
-    // Strip all h-full classes — they create percentage-height chains that
-    // collapse to zero. Let content size intrinsically so overflow scrolls.
-    container.querySelectorAll('.h-full').forEach(el => {
-      el.classList.remove('h-full');
-    });
+    
+    // Only strip .h-full for right sidebar (review panel) to avoid zero-height chains.
+    // For left sidebar, keep flex hierarchy intact so projects and conversations expand.
+    if (container.id !== 'left-sidebar-content') {
+      container.querySelectorAll('.h-full').forEach(el => {
+        el.classList.remove('h-full');
+      });
+    }
 
     // Fix tab bar: ensure tab buttons show text and bar scrolls horizontally
     container.querySelectorAll('button[data-tab-id]').forEach(btn => {

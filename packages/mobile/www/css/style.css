@@ -270,11 +270,17 @@ body {
   overflow: visible !important;
 }
 
+#left-sidebar-content .flex-1,
+#left-sidebar-content .min-h-0,
 #left-sidebar-content .overflow-y-auto,
 #left-sidebar-content [class*="overflow-y"] {
-  overflow-y: visible !important;
+  display: flex !important;
+  flex-direction: column !important;
+  flex: 1 1 auto !important;
+  min-height: auto !important;
   height: auto !important;
   max-height: none !important;
+  overflow-y: visible !important;
 }
 
 #left-sidebar-content a,
