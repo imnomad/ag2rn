@@ -374,6 +374,15 @@ body {
   background-color: var(--color-bg-muted, #161b22) !important;
 }
 
+/* ── Prevent previous messages and headers from sticking to the top of chat ── */
+#chat-content .sticky,
+#chat-content [class*="sticky"],
+#chat-content [data-ag-sticky] {
+  position: static !important;
+  top: auto !important;
+  z-index: auto !important;
+}
+
 /* ── Collapsed Section Fix (Worked for / Thought for) ── */
 /* AG uses mask-image gradients on thinking content for a fade effect.
    This makes text invisible in our context. Remove masks and height caps

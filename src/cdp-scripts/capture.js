@@ -103,9 +103,11 @@ export const CAPTURE_SCRIPT = `
     else el.removeAttribute('data-ag-remove');
   });
 
-  // -- 9. Force sticky backgrounds --
-  clone.querySelectorAll('[data-ag-sticky]').forEach(el => {
-    el.style.backgroundColor = '#101010';
+  // -- 9. Unstick sticky chat headers on mobile to prevent overlapping/frozen messages --
+  clone.querySelectorAll('.sticky, [class*="sticky"], [data-ag-sticky]').forEach(el => {
+    el.classList.remove('sticky');
+    el.style.position = 'static';
+    el.style.top = 'auto';
   });
 
   // -- 10. Fix inline div-inside-span/p --
