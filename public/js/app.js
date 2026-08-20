@@ -554,6 +554,7 @@ async function loadSnapshot() {
 
       // Wire up click proxying for interactive elements
       addClickProxyHandlers(chatContent);
+      fixRelativeAssetUrls(chatContent);
     }
 
     // Update model chip in input bar from server-extracted name (existing conversations)
@@ -563,6 +564,7 @@ async function loadSnapshot() {
     isRendering = true;
     renderSidebar(leftSidebarContent, data.leftSidebarHtml);
     addClickProxyHandlers(leftSidebarContent);
+    fixRelativeAssetUrls(leftSidebarContent);
     // Trigger deferred sidebar open from ?sidebar=open URL param (push notification click)
     if (window._ag2rSidebarOpenHook) window._ag2rSidebarOpenHook();
 
@@ -1924,8 +1926,21 @@ let sidebarFetchInFlight = false;
 // Image proxy cache: src → dataUrl (survives sidebar open/close, clears on page reload)
 const imageProxyCache = new Map();
 
+function fixRelativeAssetUrls(container) {
+  const remoteServer = localStorage.getItem('ag2rn_server_url');
+  if (!remoteServer || !container) return;
+  const imgs = container.querySelectorAll('img');
+  for (const img of imgs) {
+    const src = img.getAttribute('src') || '';
+    if (src.startsWith('/') && !src.startsWith('//')) {
+      img.src = `${remoteServer}${src}`;
+    }
+  }
+}
+
 // Scan sidebar for images with unresolvable src and proxy them via the server
 function proxySidebarImages(container) {
+  fixRelativeAssetUrls(container);
   const imgs = container.querySelectorAll('img');
   for (const img of imgs) {
     const src = img.getAttribute('src') || '';

@@ -684,13 +684,16 @@ async function captureSnapshot() {
 // only (no fallthrough). Prevents double-send when a context's async promise
 // gets garbage collected after the inject has already pasted text + clicked send.
 async function injectMessage(text, opts = {}) {
-  const ctxId = await findEditorContext();
-  if (!ctxId) throw new Error('No editor found in any context');
-
-  // JSON.stringify safely escapes quotes, newlines, backticks, unicode
   const safeText = JSON.stringify(text);
   const appendMode = opts.appendMode || false;
   const script = buildInjectScript(safeText, appendMode);
+
+  const ctxId = await findEditorContext();
+  if (!ctxId) {
+    log('Inject', 'No specific context probe matched, attempting evaluateInBrowser across contexts...');
+    return await evaluateInBrowser(script);
+  }
+
   return await evaluateInContext(ctxId, script);
 }
 
