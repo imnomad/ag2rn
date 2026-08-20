@@ -669,18 +669,30 @@ export const CAPTURE_SCRIPT = `
 
     const inputBox = document.getElementById('antigravity.agentSidePanelInputBox') || document.querySelector('[data-lexical-editor]');
     let inputParent = inputBox;
-    for (let i = 0; i < 4 && inputParent; i++) {
-      const queuedEl = inputParent.querySelector('[class*="queue"], [data-testid*="queue"]');
-      if (queuedEl && !queueCandidates.includes(queuedEl)) {
-        queueCandidates.push(queuedEl);
-      }
+    for (let i = 0; i < 5 && inputParent; i++) {
+      const queuedEls = inputParent.querySelectorAll('[class*="queue"], [data-testid*="queue"]');
+      queuedEls.forEach(el => {
+        if (!queueCandidates.includes(el)) queueCandidates.push(el);
+      });
       inputParent = inputParent.parentElement;
     }
 
     if (queueCandidates.length > 0) {
-      const qEl = queueCandidates[0];
-      const tagged = tagInteractives(qEl, 'queue', true, true);
-      const clone = qEl.cloneNode(true);
+      // Find the outermost card container that encompasses all queued messages
+      let rootCard = queueCandidates[0];
+      let cur = rootCard;
+      for (let i = 0; i < 6 && cur; i++) {
+        if (cur.parentElement && (cur.parentElement.id === 'antigravity.agentSidePanelInputBox' || cur.parentElement.id === 'root' || cur.parentElement === document.body)) {
+          break;
+        }
+        if (cur.className && (cur.className.includes('border') || cur.className.includes('rounded'))) {
+          rootCard = cur;
+        }
+        cur = cur.parentElement;
+      }
+
+      const tagged = tagInteractives(rootCard, 'queue', true, true);
+      const clone = rootCard.cloneNode(true);
       untagAll(tagged);
       clone.querySelectorAll('style').forEach(s => s.remove());
       queuedMessagesHtml = clone.outerHTML;
