@@ -1762,29 +1762,29 @@ function renderQuotaModalContent(container, quota) {
 // Native Model Picker Modal (Silent & Touch-Optimized)
 // ─────────────────────────────────────────────
 let cachedAvailableModels = [
-  { raw: 'Gemini 3.7 Flash (High)', label: 'Gemini 3.7 Flash', effort: 'High', speed: 'Fast', value: 'gemini-3.7-flash-high', family: 'gemini' },
-  { raw: 'Gemini 3.7 Flash (Medium)', label: 'Gemini 3.7 Flash', effort: 'Medium', speed: 'Fast', value: 'gemini-3.7-flash-medium', family: 'gemini' },
-  { raw: 'Gemini 3.7 Flash (Low)', label: 'Gemini 3.7 Flash', effort: 'Low', speed: 'Fast', value: 'gemini-3.7-flash-low', family: 'gemini' },
-  { raw: 'Gemini 3.6 Flash (High)', label: 'Gemini 3.6 Flash', effort: 'High', speed: 'Fast', value: 'gemini-3.6-flash-high', family: 'gemini' },
-  { raw: 'Gemini 3.6 Flash (Medium)', label: 'Gemini 3.6 Flash', effort: 'Medium', speed: 'Fast', value: 'gemini-3.6-flash-medium', family: 'gemini' },
-  { raw: 'Gemini 3.6 Flash (Low)', label: 'Gemini 3.6 Flash', effort: 'Low', speed: 'Fast', value: 'gemini-3.6-flash-low', family: 'gemini' },
-  { raw: 'Gemini 3.5 Flash (High)', label: 'Gemini 3.5 Flash', effort: 'High', speed: 'Fast', value: 'gemini-3.5-flash-high', family: 'gemini' },
-  { raw: 'Gemini 3.5 Flash (Medium)', label: 'Gemini 3.5 Flash', effort: 'Medium', speed: 'Fast', value: 'gemini-3.5-flash-medium', family: 'gemini' },
-  { raw: 'Gemini 3.5 Flash (Low)', label: 'Gemini 3.5 Flash', effort: 'Low', speed: 'Fast', value: 'gemini-3.5-flash-low', family: 'gemini' },
-  { raw: 'Gemini 3.1 Pro (High)', label: 'Gemini 3.1 Pro', effort: 'High', speed: '', value: 'gemini-3.1-pro-high', family: 'gemini' },
-  { raw: 'Gemini 3.1 Pro (Low)', label: 'Gemini 3.1 Pro', effort: 'Low', speed: '', value: 'gemini-3.1-pro-low', family: 'gemini' },
-  { raw: 'Claude Sonnet 4.6 (Thinking)', label: 'Claude Sonnet 4.6', effort: 'Thinking', speed: '', value: 'claude-sonnet-4.6', family: 'claudeGpt' },
-  { raw: 'Claude Opus 4.6 (Thinking)', label: 'Claude Opus 4.6', effort: 'Thinking', speed: '', value: 'claude-opus-4.6', family: 'claudeGpt' },
-  { raw: 'GPT-OSS 120B (Medium)', label: 'GPT-OSS 120B', effort: 'Medium', speed: '', value: 'gpt-oss-120b', family: 'claudeGpt' },
+  { raw: 'Gemini 3.7 Flash (High)', label: 'Gemini 3.7 Flash', effort: 'High', speed: 'Fast', value: '1298', family: 'gemini' },
+  { raw: 'Gemini 3.7 Flash (Medium)', label: 'Gemini 3.7 Flash', effort: 'Medium', speed: 'Fast', value: '1299', family: 'gemini' },
+  { raw: 'Gemini 3.7 Flash (Low)', label: 'Gemini 3.7 Flash', effort: 'Low', speed: 'Fast', value: '1300', family: 'gemini' },
+  { raw: 'Gemini 3.6 Flash (High)', label: 'Gemini 3.6 Flash', effort: 'High', speed: 'Fast', value: '1071', family: 'gemini' },
+  { raw: 'Gemini 3.6 Flash (Medium)', label: 'Gemini 3.6 Flash', effort: 'Medium', speed: 'Fast', value: '1072', family: 'gemini' },
+  { raw: 'Gemini 3.6 Flash (Low)', label: 'Gemini 3.6 Flash', effort: 'Low', speed: 'Fast', value: '1073', family: 'gemini' },
+  { raw: 'Gemini 3.5 Flash (High)', label: 'Gemini 3.5 Flash', effort: 'High', speed: 'Fast', value: '1084', family: 'gemini' },
+  { raw: 'Gemini 3.5 Flash (Medium)', label: 'Gemini 3.5 Flash', effort: 'Medium', speed: 'Fast', value: '1020', family: 'gemini' },
+  { raw: 'Gemini 3.5 Flash (Low)', label: 'Gemini 3.5 Flash', effort: 'Low', speed: 'Fast', value: '1187', family: 'gemini' },
+  { raw: 'Gemini 3.1 Pro (High)', label: 'Gemini 3.1 Pro', effort: 'High', speed: '', value: '1016', family: 'gemini' },
+  { raw: 'Gemini 3.1 Pro (Low)', label: 'Gemini 3.1 Pro', effort: 'Low', speed: '', value: '1036', family: 'gemini' },
+  { raw: 'Claude Sonnet 4.6 (Thinking)', label: 'Claude Sonnet 4.6', effort: 'Thinking', speed: '', value: '1035', family: 'claudeGpt' },
+  { raw: 'Claude Opus 4.6 (Thinking)', label: 'Claude Opus 4.6', effort: 'Thinking', speed: '', value: '1026', family: 'claudeGpt' },
+  { raw: 'GPT-OSS 120B (Medium)', label: 'GPT-OSS 120B', effort: 'Medium', speed: '', value: '342', family: 'claudeGpt' },
 ];
 
 function updateAvailableModels(models) {
   if (Array.isArray(models) && models.length > 0) {
     cachedAvailableModels = models.map(m => {
-      const raw = m.label || m.name || m.value || '';
+      const raw = String(m.label || m.name || m.value || '');
       let label = raw;
       let effort = '';
-      let speed = raw.toLowerCase().includes('flash') ? 'Fast' : '';
+      let speed = String(m.tagTitle || '').trim() || (raw.toLowerCase().includes('flash') ? 'Fast' : '');
       let family = (raw.toLowerCase().includes('claude') || raw.toLowerCase().includes('gpt')) ? 'claudeGpt' : 'gemini';
 
       // Parse effort e.g. "Gemini 3.7 Flash (High)"
@@ -1799,7 +1799,7 @@ function updateAvailableModels(models) {
         label,
         effort,
         speed,
-        value: m.value || m.modelAlias || raw,
+        value: String(m.value || m.modelAlias || raw),
         family
       };
     });
@@ -1816,6 +1816,7 @@ function openModelPickerModal() {
   // Group models by family
   const geminiModels = cachedAvailableModels.filter(m => m.family === 'gemini');
   const claudeGptModels = cachedAvailableModels.filter(m => m.family === 'claudeGpt');
+  const otherModels = cachedAvailableModels.filter(m => m.family !== 'gemini' && m.family !== 'claudeGpt');
 
   function renderGroupHtml(title, items) {
     if (!items || items.length === 0) return '';
@@ -1849,11 +1850,13 @@ function openModelPickerModal() {
   body.innerHTML = `
     ${renderGroupHtml('Gemini Models', geminiModels)}
     ${renderGroupHtml('Claude & GPT Models', claudeGptModels)}
+    ${renderGroupHtml('Other Models', otherModels)}
   `;
 
   // Attach click handlers to items
   body.querySelectorAll('.model-picker-item').forEach(btn => {
-    btn.addEventListener('click', async () => {
+    btn.addEventListener('click', async (e) => {
+      e.stopPropagation();
       const modelVal = btn.dataset.modelValue;
       const modelLbl = btn.dataset.modelLabel;
       await selectModelSilently(modelVal, modelLbl);

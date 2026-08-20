@@ -1462,7 +1462,9 @@ app.post('/api/select-model', async (req, res) => {
   try {
     const result = await cdpClient.Runtime.evaluate({
       expression: `(() => {
-        const trigger = document.querySelector('[data-testid="model-selector-trigger"]');
+        const trigger = document.querySelector('[data-testid="model-selector-trigger"]') ||
+                        document.querySelector('button[aria-label*="Select model"]') ||
+                        Array.from(document.querySelectorAll('button')).find(b => /gemini|claude|sonnet|gpt/i.test(b.textContent || ''));
         if (!trigger) return { ok: false, error: 'no trigger' };
 
         const fiberKey = Object.keys(trigger).find(k => k.startsWith('__reactFiber') || k.startsWith('__reactInternalInstance'));

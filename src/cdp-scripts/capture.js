@@ -775,7 +775,9 @@ export const CAPTURE_SCRIPT = `
   let availableModels = null;
   let activeSelectedModel = null;
   try {
-    const trigger = document.querySelector('[data-testid="model-selector-trigger"]');
+    const trigger = document.querySelector('[data-testid="model-selector-trigger"]') ||
+                    document.querySelector('button[aria-label*="Select model"]') ||
+                    Array.from(document.querySelectorAll('button')).find(b => /gemini|claude|sonnet|gpt/i.test(b.textContent || ''));
     if (trigger) {
       const fiberKey = Object.keys(trigger).find(k => k.startsWith('__reactFiber') || k.startsWith('__reactInternalInstance'));
       let cur = fiberKey ? trigger[fiberKey] : null;
@@ -784,18 +786,19 @@ export const CAPTURE_SCRIPT = `
         if (cur.memoizedProps && Array.isArray(cur.memoizedProps.modelOptions)) {
           const opts = cur.memoizedProps.modelOptions;
           availableModels = opts.map(m => ({
-            label: m.label || m.name || m.title || '',
-            value: m.value || m.modelAlias || m.id || '',
-            modelAlias: m.modelAlias || '',
-            tagTitle: m.tagTitle || '',
-            tagDescription: m.tagDescription || '',
+            label: String(m.label || m.name || m.title || ''),
+            value: typeof m.value === 'number' || typeof m.value === 'string' ? String(m.value) : String(m.modelAlias || ''),
+            modelAlias: String(m.modelAlias || ''),
+            tagTitle: String(m.tagTitle || ''),
+            tagDescription: String(m.tagDescription || ''),
             disabled: !!m.disabled
           }));
           if (cur.memoizedProps.selectedModel) {
+            const sm = cur.memoizedProps.selectedModel;
             activeSelectedModel = {
-              label: cur.memoizedProps.selectedModel.label || '',
-              value: cur.memoizedProps.selectedModel.value || '',
-              modelAlias: cur.memoizedProps.selectedModel.modelAlias || ''
+              label: String(sm.label || ''),
+              value: typeof sm.value === 'number' || typeof sm.value === 'string' ? String(sm.value) : String(sm.modelAlias || ''),
+              modelAlias: String(sm.modelAlias || '')
             };
           }
           break;
