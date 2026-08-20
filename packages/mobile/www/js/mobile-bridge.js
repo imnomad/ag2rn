@@ -23,21 +23,48 @@
   }
 
   // ─────────────────────────────────────────────
-  // Intercept Global Fetch for Native Remote Proxy
+  // Intercept Global Fetch for Native Remote Proxy with Self-Healing
   // ─────────────────────────────────────────────
+  let consecutiveFailures = 0;
   const originalFetch = window.fetch;
-  window.fetch = function (input, init = {}) {
-    const serverUrl = localStorage.getItem(STORAGE_KEY_URL);
+
+  window.fetch = async function (input, init = {}) {
+    let serverUrl = localStorage.getItem(STORAGE_KEY_URL);
     const authToken = localStorage.getItem(STORAGE_KEY_TOKEN);
 
     if (serverUrl && typeof input === 'string' && input.startsWith('/')) {
-      input = `${serverUrl}${input}`;
+      const fullUrl = `${serverUrl}${input}`;
       init = init || {};
       init.headers = init.headers || {};
       if (authToken && typeof init.headers.set === 'function') {
         init.headers.set('X-AG2RN-Token', authToken);
       } else if (authToken && typeof init.headers === 'object') {
         init.headers['X-AG2RN-Token'] = authToken;
+      }
+
+      try {
+        const res = await originalFetch.call(this, fullUrl, init);
+        if (res.ok || res.status < 500) {
+          consecutiveFailures = 0;
+          return res;
+        }
+      } catch (err) {
+        consecutiveFailures++;
+        // If stored server is unreachable (e.g. port changed from 3000 to 3821), auto-discover live server
+        if (consecutiveFailures >= 2) {
+          const candidates = getProbeCandidates();
+          for (const c of candidates) {
+            try {
+              const probeRes = await originalFetch(`${c.url}/api/status`, { signal: AbortSignal.timeout(800) });
+              if (probeRes.ok) {
+                localStorage.setItem(STORAGE_KEY_URL, c.url);
+                consecutiveFailures = 0;
+                return originalFetch.call(this, `${c.url}${input}`, init);
+              }
+            } catch {}
+          }
+        }
+        throw err;
       }
     }
     return originalFetch.call(this, input, init);
