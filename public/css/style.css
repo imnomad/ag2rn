@@ -950,19 +950,53 @@ body {
 
 /* ── Queued Messages Container from Antigravity 2.0 ── */
 .queued-messages-container {
-  padding: 8px 16px;
-  background: var(--bg-secondary, #131b26);
-  border-top: 1px solid var(--border-subtle, rgba(255,255,255,0.1));
+  padding: 6px 12px 2px;
+  background: transparent;
   display: flex;
   flex-direction: column;
   gap: 6px;
-  max-height: 140px;
+  max-height: 180px;
   overflow-y: auto;
   font-size: 0.85rem;
 }
 
 .queued-messages-container.hidden {
   display: none !important;
+}
+
+.queued-messages-container > div,
+.queued-messages-container [class*="rounded"] {
+  background: #18181b !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  border-radius: 12px !important;
+  padding: 10px 14px !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3) !important;
+}
+
+.queued-messages-container [class*="flex"] {
+  gap: 6px;
+}
+
+.queued-messages-container p,
+.queued-messages-container span,
+.queued-messages-container div {
+  line-height: 1.45 !important;
+}
+
+.queued-messages-container button {
+  background: transparent;
+  border: none;
+  color: #9ca3af;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 6px;
+  transition: color 0.15s, background 0.15s;
+}
+
+.queued-messages-container button:hover,
+.queued-messages-container button:active {
+  color: #f3f4f6;
+  background: rgba(255, 255, 255, 0.08);
 }
 
 /* ── Macro Chip Strip (slash commands above input) ── */
