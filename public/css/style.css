@@ -252,6 +252,47 @@ body {
   color: inherit;
 }
 
+/* ── Left Sidebar Captured Navigation Styling ── */
+#left-sidebar-content {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow-y: auto !important;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+}
+
+#left-sidebar-content [role="navigation"] {
+  display: flex !important;
+  flex-direction: column !important;
+  min-height: 100% !important;
+  height: auto !important;
+  overflow: visible !important;
+}
+
+#left-sidebar-content .overflow-y-auto,
+#left-sidebar-content [class*="overflow-y"] {
+  overflow-y: visible !important;
+  height: auto !important;
+  max-height: none !important;
+}
+
+#left-sidebar-content a,
+#left-sidebar-content button,
+#left-sidebar-content [role="button"],
+#left-sidebar-content [data-ag-click-id],
+#left-sidebar-content [class*="cursor-pointer"] {
+  cursor: pointer !important;
+  pointer-events: auto !important;
+  -webkit-tap-highlight-color: rgba(255, 255, 255, 0.1);
+}
+
+#left-sidebar-content a:active,
+#left-sidebar-content button:active,
+#left-sidebar-content [data-ag-click-id]:active {
+  opacity: 0.7;
+}
+
 .sidebar-overlay {
   position: fixed;
   inset: 0;

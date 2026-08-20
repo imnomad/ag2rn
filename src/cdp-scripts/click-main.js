@@ -41,7 +41,7 @@ export function buildMainClickScript(safeClickId, safeLabel) {
           }
         }
       } else if (source === 'left') {
-        root = document.querySelector('.bg-sidebar, [class*="bg-sidebar"], [data-testid="sidebar"], [data-testid="left-sidebar"], aside, nav[aria-label*="sidebar" i]');
+        root = document.querySelector('[role="navigation"][aria-label*="sidebar" i], div[role="navigation"], [data-testid*="sidebar-nav"], [data-testid="sidebar"], [data-testid="left-sidebar"], aside, nav');
       } else if (source === 'right') {
         // Anchor-based: find via tab-id buttons or toggle-aux-sidebar
         const tabBtn = document.querySelector('[data-tab-id="overview"], [data-tab-id="review"]');
@@ -359,7 +359,6 @@ export function buildMainClickScript(safeClickId, safeLabel) {
       }
 
       // Dropdown clicks need Lexical editor focus and hit-testing for Radix typeahead items.
-      // All other sources (left, right, chat, etc.) use simple target.click().
       if (source === 'dropdown') {
         const lexicalEditor = document.querySelector('[data-lexical-editor="true"]');
         if (lexicalEditor) {
@@ -390,7 +389,25 @@ export function buildMainClickScript(safeClickId, safeLabel) {
           clickTarget.click();
         }
       } else {
+        const clickOpts = { bubbles: true, cancelable: true, view: window };
+        target.dispatchEvent(new PointerEvent('pointerdown', clickOpts));
+        target.dispatchEvent(new MouseEvent('mousedown', clickOpts));
+        target.dispatchEvent(new PointerEvent('pointerup', clickOpts));
+        target.dispatchEvent(new MouseEvent('mouseup', clickOpts));
         target.click();
+
+        // If target has an href navigation (SPA link in sidebar/menu)
+        if (target.tagName === 'A' && target.getAttribute('href')) {
+          const href = target.getAttribute('href');
+          if (href && href.startsWith('/')) {
+            try {
+              if (window.location.pathname !== href) {
+                window.history.pushState({}, '', href);
+                window.dispatchEvent(new PopStateEvent('popstate'));
+              }
+            } catch {}
+          }
+        }
       }
 
       return { ok: true, label: actualLabel, source, debugNearby };
