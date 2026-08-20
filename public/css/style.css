@@ -43,6 +43,26 @@
 
   --safe-bottom: env(safe-area-inset-bottom, 0px);
   --safe-top: env(safe-area-inset-top, 0px);
+
+  /* ── Antigravity 2.0 Native CSS Variable Mappings ── */
+  --foreground: #e4e4e7;
+  --secondary-foreground: #a1a1aa;
+  --muted-foreground: #71717a;
+  --sidebar: #121214;
+  --sidebar-muted: #1c1c1f;
+  --sidebar-secondary: #27272a;
+  --sidebar-foreground: #e4e4e7;
+  --sidebar-primary: #3b82f6;
+  --sidebar-accent: #27272a;
+  --card: #18181b;
+  --card-foreground: #e4e4e7;
+  --popover: #18181b;
+  --popover-foreground: #e4e4e7;
+  --primary: #3b82f6;
+  --primary-foreground: #ffffff;
+  --secondary: #27272a;
+  --muted: #27272a;
+  --border: rgba(255, 255, 255, 0.08);
 }
 
 /* ── Reset ── */
@@ -286,6 +306,48 @@ body {
   overflow-y: auto !important;
   overflow-x: hidden !important;
   -webkit-overflow-scrolling: touch !important;
+  mask-image: none !important;
+  -webkit-mask-image: none !important;
+}
+
+#left-sidebar-content [data-testid="conversation-list-sidebar"] > div {
+  position: relative !important;
+  width: 100% !important;
+}
+
+#left-sidebar-content [data-index] {
+  visibility: visible !important;
+  opacity: 1 !important;
+}
+
+#left-sidebar-content .text-foreground,
+.text-foreground {
+  color: var(--foreground) !important;
+}
+
+#left-sidebar-content .text-secondary-foreground,
+.text-secondary-foreground {
+  color: var(--secondary-foreground) !important;
+}
+
+#left-sidebar-content .text-muted-foreground,
+.text-muted-foreground {
+  color: var(--muted-foreground) !important;
+}
+
+#left-sidebar-content .bg-sidebar,
+.bg-sidebar {
+  background-color: var(--sidebar) !important;
+}
+
+#left-sidebar-content .bg-sidebar-muted,
+.bg-sidebar-muted {
+  background-color: var(--sidebar-muted) !important;
+}
+
+#left-sidebar-content .bg-sidebar-secondary,
+.bg-sidebar-secondary {
+  background-color: var(--sidebar-secondary) !important;
 }
 
 #left-sidebar-content a,
