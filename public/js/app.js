@@ -119,6 +119,7 @@ const btwPanel = document.getElementById('btw-panel');
 
 // Suppression: ignore stale dialog/dropdown snapshots for a short window after user dismisses
 let overlayDismissedAt = 0;
+let rightSidebarDismissedAt = 0;
 
 // Handle ?sidebar=open&conversationId=<id> URL params (from push notification clicks)
 // If conversationId is present, navigate directly to that conversation.
@@ -611,8 +612,9 @@ async function loadSnapshot() {
     }
     if (data.isSidebarOpen !== undefined) {
       const ag2rIsOpen = rightSidebar.classList.contains('open');
+      const suppressSidebarOpen = Date.now() - rightSidebarDismissedAt < 1000;
       debugLog('sidebar-mirror', `AG:${data.isSidebarOpen} AG2R:${ag2rIsOpen} sig:${data.sidebarSignature}`);
-      if (data.isSidebarOpen && !ag2rIsOpen) {
+      if (data.isSidebarOpen && !ag2rIsOpen && !suppressSidebarOpen) {
         debugLog('sidebar-mirror', 'opening');
         openRightSidebar();
       } else if (!data.isSidebarOpen && ag2rIsOpen) {
@@ -2501,6 +2503,7 @@ function openRightSidebar() {
 }
 
 function closeRightSidebar() {
+  rightSidebarDismissedAt = Date.now();
   rightSidebar.classList.remove('open');
   rightSidebar.inert = true;
   rightSidebarOverlay.classList.remove('visible');
