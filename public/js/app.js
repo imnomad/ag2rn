@@ -2277,6 +2277,30 @@ function renderSidebar(container, html) {
         el.style.visibility = 'visible';
       }
     });
+
+    // ── Clamp virtualized container height to actual rendered items ──
+    // AG's TanStack Virtual sets the wrapper to full estimated height (e.g. 4931px).
+    // In AG2R, clamp it to the bottom of the rendered items so there is no trailing void.
+    const convoList = container.querySelector('[data-testid="conversation-list-sidebar"]');
+    if (convoList) {
+      const virtualWrapper = convoList.firstElementChild;
+      if (virtualWrapper) {
+        let maxBottom = 0;
+        virtualWrapper.querySelectorAll('[data-index]').forEach(el => {
+          const style = el.getAttribute('style') || '';
+          const match = style.match(/translateY\((\d+(?:\.\d+)?)px\)/);
+          const y = match ? parseFloat(match[1]) : el.offsetTop;
+          const h = el.offsetHeight || 36;
+          if (y + h > maxBottom) {
+            maxBottom = y + h;
+          }
+        });
+        if (maxBottom > 0) {
+          virtualWrapper.style.height = `${maxBottom + 32}px`;
+          virtualWrapper.style.minHeight = `${maxBottom + 32}px`;
+        }
+      }
+    }
   }
 }
 
