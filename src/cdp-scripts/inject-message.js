@@ -49,14 +49,14 @@ export function buildInjectScript(safeText, appendMode) {
     editor.dispatchEvent(new Event('change', { bubbles: true }));
   }
 
-  // 4. Collapse selection so text doesn't stay highlighted in blue
+  // 4. Collapse selection to end
   const sel = window.getSelection();
   if (sel) {
     try { sel.collapseToEnd(); } catch {}
   }
 
   // Brief delay for React/Lexical state cycle
-  await new Promise(r => setTimeout(r, 120));
+  await new Promise(r => setTimeout(r, 100));
 
   // 5. Find Send Button in input box / toolbar
   const findSendButton = () => {
@@ -70,9 +70,9 @@ export function buildInjectScript(safeText, appendMode) {
     ];
     for (const sel of selectors) {
       try {
-        const btn = document.querySelector(sel);
-        if (btn && (btn.offsetParent !== null || btn.getClientRects().length > 0)) {
-          return btn;
+        const b = document.querySelector(sel);
+        if (b && (b.offsetParent !== null || b.getClientRects().length > 0)) {
+          return b;
         }
       } catch {}
     }
@@ -84,13 +84,15 @@ export function buildInjectScript(safeText, appendMode) {
     return null;
   };
 
+  let btnX = null;
+  let btnY = null;
   const btn = findSendButton();
   if (btn) {
     const rect = btn.getBoundingClientRect();
-    const x = rect.left + rect.width / 2;
-    const y = rect.top + rect.height / 2;
-    const hit = document.elementFromPoint(x, y) || btn;
-    const opts = { bubbles: true, cancelable: true, clientX: x, clientY: y, view: window };
+    btnX = rect.left + rect.width / 2;
+    btnY = rect.top + rect.height / 2;
+    const hit = document.elementFromPoint(btnX, btnY) || btn;
+    const opts = { bubbles: true, cancelable: true, clientX: btnX, clientY: btnY, view: window };
     hit.dispatchEvent(new PointerEvent('pointerdown', opts));
     hit.dispatchEvent(new MouseEvent('mousedown', opts));
     hit.dispatchEvent(new PointerEvent('pointerup', opts));
@@ -99,7 +101,7 @@ export function buildInjectScript(safeText, appendMode) {
     if (typeof btn.click === 'function') btn.click();
   }
 
-  // 6. Also dispatch native Enter event directly to editor
+  // 6. Also dispatch DOM Enter event directly to editor
   editor.dispatchEvent(new KeyboardEvent('keydown', {
     key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true, cancelable: true, view: window
   }));
@@ -107,7 +109,7 @@ export function buildInjectScript(safeText, appendMode) {
     key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true, view: window
   }));
 
-  return { ok: true, method: btn ? 'button_and_enter' : 'enter' };
+  return { ok: true, method: btn ? 'button_and_enter' : 'enter', btnX, btnY };
 })()
 `;
 }

@@ -695,10 +695,63 @@ async function injectMessage(text, opts = {}) {
     log('Inject', `Using fallback context ID ${ctxId}`);
   }
 
+  let result = null;
   if (ctxId) {
-    return await evaluateInContext(ctxId, script);
+    result = await evaluateInContext(ctxId, script);
+  } else {
+    result = await evaluateInBrowser(script);
   }
-  return await evaluateInBrowser(script);
+
+  // Hardware-level event dispatch via CDP Input domain
+  if (cdpClient && cdpClient.Input) {
+    if (result && typeof result.btnX === 'number' && typeof result.btnY === 'number') {
+      try {
+        log('Inject', `Dispatching CDP Input mouse click at (${result.btnX}, ${result.btnY})`);
+        await cdpClient.Input.dispatchMouseEvent({
+          type: 'mousePressed',
+          x: Math.round(result.btnX),
+          y: Math.round(result.btnY),
+          button: 'left',
+          clickCount: 1,
+        });
+        await new Promise(r => setTimeout(r, 60));
+        await cdpClient.Input.dispatchMouseEvent({
+          type: 'mouseReleased',
+          x: Math.round(result.btnX),
+          y: Math.round(result.btnY),
+          button: 'left',
+          clickCount: 1,
+        });
+      } catch (e) {
+        log('Inject', `CDP dispatchMouseEvent error: ${e.message}`);
+      }
+    }
+
+    try {
+      log('Inject', 'Dispatching CDP Input Enter keypress');
+      await cdpClient.Input.dispatchKeyEvent({
+        type: 'rawKeyDown',
+        windowsVirtualKeyCode: 13,
+        nativeVirtualKeyCode: 13,
+        macCharCode: 13,
+        unmodifiedText: '\r',
+        text: '\r',
+        key: 'Enter',
+        code: 'Enter',
+      });
+      await new Promise(r => setTimeout(r, 40));
+      await cdpClient.Input.dispatchKeyEvent({
+        type: 'keyUp',
+        windowsVirtualKeyCode: 13,
+        key: 'Enter',
+        code: 'Enter',
+      });
+    } catch (e) {
+      log('Inject', `CDP dispatchKeyEvent error: ${e.message}`);
+    }
+  }
+
+  return result;
 }
 
 // Poll AG's editor until it contains image content (img, decorator nodes).
